@@ -37,6 +37,7 @@
  * NAMESPACE
  **************************************************************************************/
 
+using namespace uavcan::node;
 using namespace uavcan::primitive::scalar;
 
 /**************************************************************************************
@@ -76,7 +77,7 @@ ArduinoMCP2515 mcp2515(spi_select,
 
 ArduinoUAVCAN uc(15, transmitCanFrame);
 
-Heartbeat_1_0 hb;
+Heartbeat_1_0<> hb;
 Bit_1_0<ID_BUMPER> uavcan_bumper;
 Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
 Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
@@ -117,20 +118,13 @@ void setup()
   uavcan_as5048_b.data.value = 0.0;
   /* Configure initial heartbeat */
   hb.data.uptime = 0;
-  hb = Heartbeat_1_0::Health::NOMINAL;
-  hb = Heartbeat_1_0::Mode::INITIALIZATION;
+  hb = Heartbeat_1_0<>::Health::NOMINAL;
+  hb = Heartbeat_1_0<>::Mode::INITIALIZATION;
   hb.data.vendor_specific_status_code = 0;
 
   /* Subscribe to the reception of Bit message. */
   uc.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   Serial.println("init finished");
-
-  /* init and check temperature sensors */
-  Serial.print("Locating devices...");
-  sensors.begin();
-  Serial.print("Found ");
-  Serial.print(sensors.getDeviceCount(), DEC);
-  Serial.println(" devices.");
 }
 
 void loop()
@@ -139,7 +133,7 @@ void loop()
   static bool bumper_old=0;
   bool bumper_in;
   bumper_in=digitalRead(BUMPER);
-  if(bumper_old!=switch_in)
+  if(bumper_old!=bumper_in)
   {
     uavcan_bumper.data.value = bumper_in;
     uc.publish(uavcan_bumper);   
@@ -150,18 +144,12 @@ void loop()
   
   /* Update the heartbeat object */
   hb.data.uptime = millis() / 1000;
-  hb = Heartbeat_1_0::Mode::OPERATIONAL;
+  hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
 
   /* Publish the heartbeat once/second */
   static unsigned long prev = 0;
   unsigned long const now = millis();
   if(now - prev > 1000) {
-  /* toggle bit */
-    if(uavcan_toggle.data.value==true) uavcan_toggle.data.value=false;
-    else uavcan_toggle.data.value=true;
-    uc.publish(uavcan_toggle);
-    uc.publish(hb);
-
   /* read AS5048_A value */
     Serial.print("Requesting AS5048 A angle...");
 //    uavcan_as5048_a.data.value = a_angle;
