@@ -16,6 +16,9 @@ jobs:
 
     env:
       SKETCHES_REPORTS_PATH: sketches-reports
+      LIBRARIES: |
+        - source-path: ./
+
 
     strategy:
       fail-fast: false
