@@ -27,9 +27,9 @@
  * DEFINES
  **************************************************************************************/
 
-#define LED1 2
-#define LED2 A7
-#define LED3 A6
+#define LED1_PIN 2
+#define LED2_PIN A7
+#define LED3_PIN A6
 #define BUMPER 6
 #define ANALOG_PIN A1
 
@@ -90,11 +90,15 @@ Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
 void setup()
 {
   Serial.begin(9600);
-//  while(!Serial) { }
+  while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
-  pinMode(LED1, OUTPUT);
-  digitalWrite(LED1, LOW);
+  pinMode(LED1_PIN, OUTPUT);
+  digitalWrite(LED1_PIN, LOW);
+  pinMode(LED2_PIN, OUTPUT);
+  digitalWrite(LED2_PIN, LOW);
+  pinMode(LED3_PIN, OUTPUT);
+  digitalWrite(LED3_PIN, LOW);
   pinMode(BUMPER, INPUT_PULLUP);
 
   /* Setup SPI access */
@@ -131,6 +135,7 @@ void loop()
 {
   /* check switch */
   static bool bumper_old=0;
+  static bool flag_led=0;
   bool bumper_in;
   bumper_in=digitalRead(BUMPER);
   if(bumper_old!=bumper_in)
@@ -141,6 +146,26 @@ void loop()
     Serial.println(bumper_in); 
   }
   bumper_old=bumper_in;
+
+  /* toggle LEDS */
+  if((millis()%200)==0)
+  {
+    if(flag_led==0) // execute only once
+    {
+      if(digitalRead(LED2_PIN)==LOW)
+      {
+        digitalWrite(LED2_PIN, HIGH);
+        digitalWrite(LED3_PIN, LOW);
+      }
+      else
+      {
+        digitalWrite(LED2_PIN, LOW);
+        digitalWrite(LED3_PIN, HIGH);
+      }
+    }
+    flag_led=1;
+  }
+  else flag_led=0;
   
   /* Update the heartbeat object */
   hb.data.uptime = millis() / 1000;
@@ -209,12 +234,12 @@ void onLed1_Received(CanardTransfer const & transfer, ArduinoUAVCAN & /* uavcan 
 
   if(uavcan_led1.data.value)
   {
-    digitalWrite(LED1, HIGH);
+    digitalWrite(LED1_PIN, HIGH);
     Serial.println("Received Bit1: true");
   }
   else
   {
-    digitalWrite(LED1, LOW);
+    digitalWrite(LED1_PIN, LOW);
     Serial.println("Received Bit1: false");
   }
 }
