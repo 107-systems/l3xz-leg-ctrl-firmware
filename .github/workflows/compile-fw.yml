@@ -25,11 +25,11 @@ jobs:
     strategy:
       fail-fast: false
 
-    matrix:
-      board:
-        - fqbn: arduino:samd:mkrzero
-          platforms: |
-            - name: arduino:samd
+      matrix:
+        board:
+          - fqbn: arduino:samd:mkrzero
+            platforms: |
+              - name: arduino:samd
 
     steps:
       - name: Checkout
