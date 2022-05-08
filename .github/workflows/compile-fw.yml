@@ -22,7 +22,7 @@ jobs:
 
       matrix:
         board:
-          - fqbn: arduino:samd:mkrzero
+          - fqbn: arduino:samd:nano_33_iot
             platforms: |
               - name: arduino:samd
 
