@@ -1,5 +1,3 @@
-[![General Formatting Checks](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/General%20Formatting%20Checks/badge.svg)](https://github.com/wuehr1999/NavigationOnArduino/actions?workflow=General+Formatting+Checks)
-
 # Firmware for the L3X-Z Hexapod leg controller
 
 https://github.com/107-systems/l3xz-hw_leg-controller
