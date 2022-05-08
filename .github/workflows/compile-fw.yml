@@ -16,11 +16,6 @@ jobs:
 
     env:
       SKETCHES_REPORTS_PATH: sketches-reports
-      LIBRARIES: |
-        - source-path: ./
-          - name: 107-Arduino-AS504x
-          - name: 107-Arduino-MCP2515
-          - name: 107-Arduino-UAVCAN
 
     strategy:
       fail-fast: false
