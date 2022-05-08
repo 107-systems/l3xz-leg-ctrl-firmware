@@ -22,6 +22,7 @@
 
 #include <ArduinoUAVCAN.h>
 #include <ArduinoMCP2515.h>
+#include <107-Arduino-AS504x.h>
 
 /**************************************************************************************
  * DEFINES
@@ -45,12 +46,15 @@ using namespace uavcan::primitive::scalar;
  **************************************************************************************/
 
 static int const MKRCAN_MCP2515_CS_PIN  = 3;
-static int const MKRCAN_MCP2515_INT_PIN = 7;
+static int const MKRCAN_MCP2515_INT_PIN = 9;
 static CanardPortID const ID_INPUT_VOLTAGE = 1001U;
 static CanardPortID const ID_AS5048_A      = 1002U;
 static CanardPortID const ID_AS5048_B      = 1003U;
 static CanardPortID const ID_BUMPER        = 1004U;
 static CanardPortID const ID_LED1          = 1005U;
+static int         const AS504x_CS_PIN = 4;
+static SPISettings const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
+
 
 /**************************************************************************************
  * FUNCTION DECLARATION
@@ -83,6 +87,15 @@ Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
 Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
 Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
 
+ArduinoAS504x angle_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING); },
+                               [](){ SPI.endTransaction(); },
+                               [](){ digitalWrite(AS504x_CS_PIN, LOW); },
+                               [](){ digitalWrite(AS504x_CS_PIN, HIGH); },
+                               [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
+                               delayMicroseconds);
+
+
+
 /**************************************************************************************
  * SETUP/LOOP
  **************************************************************************************/
@@ -105,6 +118,10 @@ void setup()
   SPI.begin();
   pinMode(MKRCAN_MCP2515_CS_PIN, OUTPUT);
   digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
+
+  pinMode(AS504x_CS_PIN, OUTPUT);
+  digitalWrite(AS504x_CS_PIN, LOW);
+
 
   /* Attach interrupt handler to register MCP2515 signaled by taking INT low */
   pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
@@ -177,6 +194,8 @@ void loop()
   if(now - prev > 1000) {
   /* read AS5048_A value */
     Serial.print("Requesting AS5048 A angle...");
+    float a_angle=angle_pos_sensor.angle_raw();
+    Serial.println(a_angle);
 //    uavcan_as5048_a.data.value = a_angle;
 //    uc.publish(uavcan_as5048_a);   
 
