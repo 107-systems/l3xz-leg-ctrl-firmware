@@ -42,10 +42,10 @@ jobs:
           platforms: ${{ matrix.board.platforms }}
           enable-deltas-report: true
           libraries: |
-        - source-path: ./
-          - name: 107-Arduino-AS504x
-          - name: 107-Arduino-MCP2515
-          - name: 107-Arduino-UAVCAN
+            - source-path: ./
+            - name: 107-Arduino-AS504x
+            - name: 107-Arduino-MCP2515
+            - name: 107-Arduino-UAVCAN
           
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: leg-controller
