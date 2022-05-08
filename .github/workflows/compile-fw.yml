@@ -37,9 +37,9 @@ jobs:
           platforms: ${{ matrix.board.platforms }}
           enable-deltas-report: true
           libraries: |
-            -name: 107-Arduino-AS504x
-            -name: 107-Arduino-MCP2515
-            -name: 107-Arduino-UAVCAN
+            name: 107-Arduino-AS504x
+            name: 107-Arduino-MCP2515
+            name: 107-Arduino-UAVCAN
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
 
       - name: Save memory usage change report as artifact
