@@ -12,11 +12,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # See: https://github.com/codespell-project/actions-codespell/blob/master/README.md
       - name: Spell check
         uses: codespell-project/actions-codespell@master
         with:
           check_filenames: true
           check_hidden: true
-          skip: ./.git,./extras/test/external,./src/lib
-          ignore_words_file: extras/codespell-ignore-words-list.txt
+          skip: ./.git
+          ignore_words_file: .github/workflows/codespell-ignore-words-list.txt
