@@ -6,9 +6,9 @@ on:
       - ".github/workflows/compile-examples.yml"
 
   push:
-    #paths:
-    #  - ".github/workflows/compile-examples.yml"
-    #  - "leg-controller/**"
+    paths:
+      - ".github/workflows/compile-examples.yml"
+      - "leg-controller/**"
 
 jobs:
   build:
