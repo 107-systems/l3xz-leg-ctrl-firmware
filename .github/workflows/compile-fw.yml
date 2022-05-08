@@ -20,7 +20,7 @@ jobs:
         - source-path: ./
           - name: 107-Arduino-AS504x
           - name: 107-Arduino-MCP2515
-          - source-url: https://github.com/107-systems/107-Arduino-UAVCAN.git
+          - source-url: 107-Arduino-UAVCAN
 
     strategy:
       fail-fast: false
@@ -41,6 +41,7 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           enable-deltas-report: true
+          libraries: ${{ env.LIBRARIES }}
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: leg-controller
             
