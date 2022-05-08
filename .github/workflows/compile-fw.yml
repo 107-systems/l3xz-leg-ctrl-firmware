@@ -22,7 +22,7 @@ jobs:
 
       matrix:
         board:
-          - fqbn: arduino:samd:nano33iot
+          - fqbn: arduino:samd:nano_33_iot
             platforms: |
               - name: arduino:samd
 
@@ -45,9 +45,9 @@ jobs:
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: leg-controller
             
-      - name: Save memory usage change report as artifact
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ env.SKETCHES_REPORTS_PATH }}
-          path: ${{ env.SKETCHES_REPORTS_PATH }}
+      #- name: Save memory usage change report as artifact
+      #  if: github.event_name == 'pull_request'
+      #  uses: actions/upload-artifact@v2
+      #  with:
+      #    name: ${{ env.SKETCHES_REPORTS_PATH }}
+      #    path: ${{ env.SKETCHES_REPORTS_PATH }}
