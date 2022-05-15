@@ -5,7 +5,7 @@
  *   - Arduino Nano 33 IoT
  *   - MCP2515
  * https://github.com/107-systems/l3xz-hw_leg-controller
- *   
+ *
  * Used Subject-IDs
  * 1001 - pub - Real32 - input voltage
  * 1002 - pub - Real32 - AS5048-A-angle
@@ -167,9 +167,9 @@ void loop()
   if(bumper_old!=bumper_in)
   {
     uavcan_bumper.data.value = bumper_in;
-    uc.publish(uavcan_bumper);   
+    uc.publish(uavcan_bumper);
     Serial.print("send bit: ");
-    Serial.println(bumper_in); 
+    Serial.println(bumper_in);
   }
   bumper_old=bumper_in;
 
@@ -192,7 +192,7 @@ void loop()
     flag_led=1;
   }
   else flag_led=0;
-  
+
   /* Update the heartbeat object */
   hb.data.uptime = millis() / 1000;
   hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
@@ -206,21 +206,21 @@ void loop()
     float a_angle=angle_A_pos_sensor.angle_raw();
     Serial.println(a_angle);
     uavcan_as5048_a.data.value = a_angle;
-    uc.publish(uavcan_as5048_a);   
+    uc.publish(uavcan_as5048_a);
 
   /* read AS5048_B value */
     Serial.print("Requesting AS5048 B angle...");
     float b_angle=angle_B_pos_sensor.angle_raw();
     Serial.println(b_angle);
     uavcan_as5048_b.data.value = b_angle;
-    uc.publish(uavcan_as5048_b);   
+    uc.publish(uavcan_as5048_b);
 
   /* read analog value */
     float analog=analogRead(ANALOG_PIN)/1023.0;
     Serial.print("Analog Pin: ");
     Serial.println(analog);
     uavcan_input_voltage.data.value = analog;
-    uc.publish(uavcan_input_voltage);   
+    uc.publish(uavcan_input_voltage);
 
     prev = now;
   }
