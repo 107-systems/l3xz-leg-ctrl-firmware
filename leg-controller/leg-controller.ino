@@ -18,10 +18,13 @@
  * INCLUDE
  **************************************************************************************/
 #include <SPI.h>
+#include <Wire.h>
+
 
 #include <ArduinoUAVCAN.h>
 #include <ArduinoMCP2515.h>
 #include <107-Arduino-AS504x.h>
+#include <I2C_eeprom.h>
 
 /**************************************************************************************
  * DEFINES
@@ -100,7 +103,7 @@ ArduinoAS504x angle_B_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING);
                                [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                delayMicroseconds);
 
-
+I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
 /**************************************************************************************
  * SETUP/LOOP
@@ -109,7 +112,7 @@ ArduinoAS504x angle_B_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING);
 void setup()
 {
   Serial.begin(9600);
-//  while(!Serial) { } /* only for debug */
+  while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
@@ -119,6 +122,17 @@ void setup()
   pinMode(LED3_PIN, OUTPUT);
   digitalWrite(LED3_PIN, LOW);
   pinMode(BUMPER, INPUT_PULLUP);
+
+  /* Setup I2C Eeprom */
+  ee.begin();
+  if (! ee.isConnected())
+  {
+    Serial.println("ERROR: Can't find eeprom\nstopped...");
+    while (1);
+  }
+  uint8_t eeNodeID=ee.readByte(0);
+  Serial.print("Node-ID from eeprom: ");
+  Serial.println(eeNodeID);
 
   /* Setup SPI access */
   SPI.begin();
