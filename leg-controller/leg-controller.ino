@@ -109,7 +109,7 @@ ArduinoAS504x angle_B_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING);
 void setup()
 {
   Serial.begin(9600);
-  while(!Serial) { } /* only for debug */
+//  while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
@@ -205,15 +205,15 @@ void loop()
     Serial.print("Requesting AS5048 A angle...");
     float a_angle=angle_A_pos_sensor.angle_raw();
     Serial.println(a_angle);
-//    uavcan_as5048_a.data.value = a_angle;
-//    uc.publish(uavcan_as5048_a);   
+    uavcan_as5048_a.data.value = a_angle;
+    uc.publish(uavcan_as5048_a);   
 
   /* read AS5048_B value */
     Serial.print("Requesting AS5048 B angle...");
     float b_angle=angle_B_pos_sensor.angle_raw();
     Serial.println(b_angle);
-//    uavcan_as5048_b.data.value = b_angle;
-//    uc.publish(uavcan_as5048_b);   
+    uavcan_as5048_b.data.value = b_angle;
+    uc.publish(uavcan_as5048_b);   
 
   /* read analog value */
     float analog=analogRead(ANALOG_PIN)/1023.0;
