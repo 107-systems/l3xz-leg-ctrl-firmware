@@ -113,7 +113,8 @@ I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 void setup()
 {
   Serial.begin(9600);
-  while(!Serial) { } /* only for debug */
+  delay(3000);
+//  while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
@@ -240,6 +241,8 @@ void loop()
     uavcan_input_voltage.data.value = analog;
     uc->publish(uavcan_input_voltage);
 
+  /* publish heartbeat */
+    uc->publish(hb);
     prev = now;
   }
 
