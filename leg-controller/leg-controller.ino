@@ -235,7 +235,7 @@ void loop()
     uc->publish(uavcan_as5048_b);
 
   /* read analog value */
-    float analog=analogRead(ANALOG_PIN)/1023.0;
+    float analog=analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
     Serial.print("Analog Pin: ");
     Serial.println(analog);
     uavcan_input_voltage.data.value = analog;
