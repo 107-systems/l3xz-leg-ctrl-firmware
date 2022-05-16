@@ -82,7 +82,8 @@ ArduinoMCP2515 mcp2515(spi_select,
                        onReceiveBufferFull,
                        nullptr);
 
-ArduinoUAVCAN uc(15, transmitCanFrame);
+static ArduinoUAVCAN * uc = nullptr;
+//ArduinoUAVCAN uc(15, transmitCanFrame);
 
 Heartbeat_1_0<> hb;
 Bit_1_0<ID_BUMPER> uavcan_bumper;
@@ -130,9 +131,12 @@ void setup()
     Serial.println("ERROR: Can't find eeprom\nstopped...");
     while (1);
   }
-  uint8_t eeNodeID=ee.readByte(0);
+  uint8_t const eeNodeID=ee.readByte(0);
   Serial.print("Node-ID from eeprom: ");
   Serial.println(eeNodeID);
+
+  /* create UAVCAN class */
+  uc = new ArduinoUAVCAN(eeNodeID, transmitCanFrame);
 
   /* Setup SPI access */
   SPI.begin();
@@ -167,7 +171,7 @@ void setup()
   hb.data.vendor_specific_status_code = 0;
 
   /* Subscribe to the reception of Bit message. */
-  uc.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
+  uc->subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   Serial.println("init finished");
 }
 
@@ -181,7 +185,7 @@ void loop()
   if(bumper_old!=bumper_in)
   {
     uavcan_bumper.data.value = bumper_in;
-    uc.publish(uavcan_bumper);
+    uc->publish(uavcan_bumper);
     Serial.print("send bit: ");
     Serial.println(bumper_in);
   }
@@ -220,27 +224,27 @@ void loop()
     float a_angle=angle_A_pos_sensor.angle_raw();
     Serial.println(a_angle);
     uavcan_as5048_a.data.value = a_angle;
-    uc.publish(uavcan_as5048_a);
+    uc->publish(uavcan_as5048_a);
 
   /* read AS5048_B value */
     Serial.print("Requesting AS5048 B angle...");
     float b_angle=angle_B_pos_sensor.angle_raw();
     Serial.println(b_angle);
     uavcan_as5048_b.data.value = b_angle;
-    uc.publish(uavcan_as5048_b);
+    uc->publish(uavcan_as5048_b);
 
   /* read analog value */
     float analog=analogRead(ANALOG_PIN)/1023.0;
     Serial.print("Analog Pin: ");
     Serial.println(analog);
     uavcan_input_voltage.data.value = analog;
-    uc.publish(uavcan_input_voltage);
+    uc->publish(uavcan_input_voltage);
 
     prev = now;
   }
 
   /* Transmit all enqeued CAN frames */
-  while(uc.transmitCanFrame()) { }
+  while(uc->transmitCanFrame()) { }
 }
 
 /**************************************************************************************
@@ -274,7 +278,7 @@ bool transmitCanFrame(CanardFrame const & frame)
 
 void onReceiveBufferFull(CanardFrame const & frame)
 {
-  uc.onCanFrameReceived(frame);
+  uc->onCanFrameReceived(frame);
 }
 
 void onLed1_Received(CanardTransfer const & transfer, ArduinoUAVCAN & /* uavcan */)
