@@ -1,3 +1,4 @@
+<a href="https://107-systems.org/"><img align="right" src="https://raw.githubusercontent.com/107-systems/.github/main/logo/107-systems.png" width="15%"></a>
 :floppydisk: Firmware for the L3X-Z Hexapod leg controller
 ==========================================================
 [![Check keywords.txt](https://github.com/107-systems/l3xz-fw_leg-controller/actions/workflows/check-keywords-txt.yml/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions/workflows/check-keywords-txt.yml)
@@ -5,7 +6,7 @@
 [![Spell Check](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/Spell%20Check/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=Spell+Check)
 [![Compile Examples](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/Compile/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=Compile)
 
-https://github.com/107-systems/l3xz-hw_leg-controller
+[Hardware](https://github.com/107-systems/l3xz-hw_leg-controller).
 
 ### How-to-build/upload
 ```bash
