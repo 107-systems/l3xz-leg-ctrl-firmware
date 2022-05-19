@@ -134,7 +134,7 @@ I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 void setup()
 {
   Serial.begin(115200);
-  while(!Serial) { } /* only for debug */
+  //while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
