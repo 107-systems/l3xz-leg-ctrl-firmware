@@ -25,6 +25,7 @@
 #include <ArduinoMCP2515.h>
 #include <107-Arduino-AS504x.h>
 #include <I2C_eeprom.h>
+#include <Adafruit_SleepyDog.h>
 
 /**************************************************************************************
  * DEFINES
@@ -133,6 +134,8 @@ I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
 void setup()
 {
+  Watchdog.enable(1000);
+
   Serial.begin(115200);
   //while(!Serial) { } /* only for debug */
 
@@ -194,6 +197,9 @@ void setup()
   /* Subscribe to the reception of Bit message. */
   uc->subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   Serial.println("init finished");
+
+  /* Feed the watchdog to keep it from biting. */
+  Watchdog.reset();
 }
 
 void loop()
@@ -279,6 +285,9 @@ void loop()
 
   /* Transmit all enqeued CAN frames */
   while(uc->transmitCanFrame()) { }
+
+  /* Feed the watchdog to keep it from biting. */
+  Watchdog.reset();
 }
 
 /**************************************************************************************
