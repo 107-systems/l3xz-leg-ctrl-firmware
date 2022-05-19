@@ -5,7 +5,7 @@
  *   - Arduino Nano 33 IoT
  *   - MCP2515
  * https://github.com/107-systems/l3xz-hw_leg-controller
- *   
+ *
  * Used Subject-IDs
  * 1001 - pub - Real32 - input voltage
  * 1002 - pub - Real32 - AS5048-A-angle
@@ -18,10 +18,14 @@
  * INCLUDE
  **************************************************************************************/
 #include <SPI.h>
+#include <Wire.h>
+
 
 #include <ArduinoUAVCAN.h>
 #include <ArduinoMCP2515.h>
 #include <107-Arduino-AS504x.h>
+#include <I2C_eeprom.h>
+#include <Adafruit_SleepyDog.h>
 
 /**************************************************************************************
  * DEFINES
@@ -44,42 +48,48 @@ using namespace uavcan::primitive::scalar;
  * CONSTANTS
  **************************************************************************************/
 
-static int const MKRCAN_MCP2515_CS_PIN  = 3;
-static int const MKRCAN_MCP2515_INT_PIN = 9;
-static CanardPortID const ID_INPUT_VOLTAGE = 1001U;
-static CanardPortID const ID_AS5048_A      = 1002U;
-static CanardPortID const ID_AS5048_B      = 1003U;
-static CanardPortID const ID_BUMPER        = 1004U;
-static CanardPortID const ID_LED1          = 1005U;
-static int         const AS504x_A_CS_PIN = 4;
-static int         const AS504x_B_CS_PIN = 5;
-static SPISettings const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
+static int          const MKRCAN_MCP2515_CS_PIN  = 3;
+static int          const MKRCAN_MCP2515_INT_PIN = 9;
+static int          const AS504x_A_CS_PIN        = 4;
+static int          const AS504x_B_CS_PIN        = 5;
 
+static CanardPortID const ID_INPUT_VOLTAGE       = 1001U;
+static CanardPortID const ID_AS5048_A            = 1002U;
+static CanardPortID const ID_AS5048_B            = 1003U;
+static CanardPortID const ID_BUMPER              = 1004U;
+static CanardPortID const ID_LED1                = 1005U;
+
+static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
+static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
 
 /**************************************************************************************
  * FUNCTION DECLARATION
  **************************************************************************************/
 
-void    spi_select        ();
-void    spi_deselect       ();
-uint8_t spi_transfer       (uint8_t const);
-void    onExternalEvent    ();
-bool    transmitCanFrame   (CanardFrame const &);
-void    onReceiveBufferFull(CanardFrame const &);
-void    onLed1_Received (CanardTransfer const &, ArduinoUAVCAN &);
+void onLed1_Received (CanardTransfer const &, ArduinoUAVCAN &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
  **************************************************************************************/
 
-ArduinoMCP2515 mcp2515(spi_select,
-                       spi_deselect,
-                       spi_transfer,
-                       micros,
-                       onReceiveBufferFull,
-                       nullptr);
+static ArduinoUAVCAN * uc = nullptr;
 
-ArduinoUAVCAN uc(15, transmitCanFrame);
+ArduinoMCP2515 mcp2515([]()
+                       {
+                         noInterrupts();
+                         SPI.beginTransaction(MCP2515x_SPI_SETTING);
+                         digitalWrite(MKRCAN_MCP2515_CS_PIN, LOW);
+                       },
+                       []()
+                       {
+                         digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
+                         SPI.endTransaction();
+                         interrupts();
+                       },
+                       [](uint8_t const d) { return SPI.transfer(d); },
+                       micros,
+                       [](CanardFrame const & f) { uc->onCanFrameReceived(f); },
+                       nullptr);
 
 Heartbeat_1_0<> hb;
 Bit_1_0<ID_BUMPER> uavcan_bumper;
@@ -87,20 +97,36 @@ Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
 Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
 Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
 
-ArduinoAS504x angle_A_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING); },
-                               [](){ SPI.endTransaction(); },
-                               [](){ digitalWrite(AS504x_A_CS_PIN, LOW); },
-                               [](){ digitalWrite(AS504x_A_CS_PIN, HIGH); },
-                               [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
-                               delayMicroseconds);
-ArduinoAS504x angle_B_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING); },
-                               [](){ SPI.endTransaction(); },
-                               [](){ digitalWrite(AS504x_B_CS_PIN, LOW); },
-                               [](){ digitalWrite(AS504x_B_CS_PIN, HIGH); },
-                               [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
-                               delayMicroseconds);
+ArduinoAS504x angle_A_pos_sensor([]()
+                                 {
+                                   noInterrupts();
+                                   SPI.beginTransaction(AS504x_SPI_SETTING);
+                                 },
+                                 []()
+                                 {
+                                  SPI.endTransaction();
+                                  interrupts();
+                                 },
+                                 [](){ digitalWrite(AS504x_A_CS_PIN, LOW); },
+                                 [](){ digitalWrite(AS504x_A_CS_PIN, HIGH); },
+                                 [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
+                                 delayMicroseconds);
+ArduinoAS504x angle_B_pos_sensor([]()
+                                 {
+                                   noInterrupts();
+                                   SPI.beginTransaction(AS504x_SPI_SETTING);
+                                 },
+                                 []()
+                                 {
+                                  SPI.endTransaction();
+                                  interrupts();
+                                 },
+                                 [](){ digitalWrite(AS504x_B_CS_PIN, LOW); },
+                                 [](){ digitalWrite(AS504x_B_CS_PIN, HIGH); },
+                                 [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
+                                 delayMicroseconds);
 
-
+I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
 /**************************************************************************************
  * SETUP/LOOP
@@ -108,8 +134,10 @@ ArduinoAS504x angle_B_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING);
 
 void setup()
 {
-  Serial.begin(9600);
-  while(!Serial) { } /* only for debug */
+  Watchdog.enable(1000);
+
+  Serial.begin(115200);
+  //while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
@@ -119,6 +147,20 @@ void setup()
   pinMode(LED3_PIN, OUTPUT);
   digitalWrite(LED3_PIN, LOW);
   pinMode(BUMPER, INPUT_PULLUP);
+
+  /* Setup I2C Eeprom */
+  ee.begin();
+  if (! ee.isConnected())
+  {
+    Serial.println("ERROR: Can't find eeprom\nstopped...");
+    while (1);
+  }
+  uint8_t const eeNodeID=ee.readByte(0);
+  Serial.print("Node-ID from eeprom: ");
+  Serial.println(eeNodeID);
+
+  /* create UAVCAN class */
+  uc = new ArduinoUAVCAN(eeNodeID, [](CanardFrame const & frame) -> bool { return mcp2515.transmit(frame); });
 
   /* Setup SPI access */
   SPI.begin();
@@ -134,7 +176,7 @@ void setup()
 
   /* Attach interrupt handler to register MCP2515 signaled by taking INT low */
   pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(MKRCAN_MCP2515_INT_PIN), onExternalEvent, FALLING);
+  attachInterrupt(digitalPinToInterrupt(MKRCAN_MCP2515_INT_PIN), []() { mcp2515.onExternalEventHandler(); }, FALLING);
 
   /* Initialize MCP2515 */
   mcp2515.begin();
@@ -153,8 +195,11 @@ void setup()
   hb.data.vendor_specific_status_code = 0;
 
   /* Subscribe to the reception of Bit message. */
-  uc.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
+  uc->subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   Serial.println("init finished");
+
+  /* Feed the watchdog to keep it from biting. */
+  Watchdog.reset();
 }
 
 void loop()
@@ -167,9 +212,9 @@ void loop()
   if(bumper_old!=bumper_in)
   {
     uavcan_bumper.data.value = bumper_in;
-    uc.publish(uavcan_bumper);   
+    uc->publish(uavcan_bumper);
     Serial.print("send bit: ");
-    Serial.println(bumper_in); 
+    Serial.println(bumper_in);
   }
   bumper_old=bumper_in;
 
@@ -192,76 +237,62 @@ void loop()
     flag_led=1;
   }
   else flag_led=0;
-  
-  /* Update the heartbeat object */
-  hb.data.uptime = millis() / 1000;
-  hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
 
-  /* Publish the heartbeat once/second */
-  static unsigned long prev = 0;
+  /* Publish all the gathered data, although at various
+   * different intervals.
+   */
+  static unsigned long prev_heartbeat = 0;
+  static unsigned long prev_angle_sensor = 0;
+  static unsigned long prev_battery_voltage = 0;
+
   unsigned long const now = millis();
-  if(now - prev > 1000) {
-  /* read AS5048_A value */
-    Serial.print("Requesting AS5048 A angle...");
-    float a_angle=angle_A_pos_sensor.angle_raw();
-    Serial.println(a_angle);
-//    uavcan_as5048_a.data.value = a_angle;
-//    uc.publish(uavcan_as5048_a);   
 
-  /* read AS5048_B value */
-    Serial.print("Requesting AS5048 B angle...");
-    float b_angle=angle_B_pos_sensor.angle_raw();
-    Serial.println(b_angle);
-//    uavcan_as5048_b.data.value = b_angle;
-//    uc.publish(uavcan_as5048_b);   
+  if((now - prev_heartbeat) > 1000)
+  {
+     hb.data.uptime = millis() / 1000;
+     hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
+     Serial.println(hb.data.uptime);
+     uc->publish(hb);
+     prev_heartbeat = now;
+   }
 
-  /* read analog value */
-    float analog=analogRead(ANALOG_PIN)/1023.0;
+  if((now - prev_angle_sensor) > 50)
+  {
+    float const a_angle_raw = angle_A_pos_sensor.angle_raw();
+    float const a_angle_deg = (a_angle_raw * 360.0) / 16384.0f; /* 2^14 */
+    Serial.println(a_angle_deg);
+    uavcan_as5048_a.data.value = a_angle_deg;
+    uc->publish(uavcan_as5048_a);
+
+    float const b_angle_raw = angle_B_pos_sensor.angle_raw();
+    float const b_angle_deg = (b_angle_raw * 360.0) / 16384.0f; /* 2^14 */
+    Serial.println(b_angle_deg);
+    uavcan_as5048_b.data.value = b_angle_deg;
+    uc->publish(uavcan_as5048_b);
+
+    prev_angle_sensor = now;
+  }
+
+  if((now - prev_battery_voltage) > (10*1000))
+  {
+    float const analog = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
     Serial.print("Analog Pin: ");
     Serial.println(analog);
     uavcan_input_voltage.data.value = analog;
-    uc.publish(uavcan_input_voltage);   
-
-    prev = now;
+    uc->publish(uavcan_input_voltage);
+    prev_battery_voltage = now;
   }
 
   /* Transmit all enqeued CAN frames */
-  while(uc.transmitCanFrame()) { }
+  while(uc->transmitCanFrame()) { }
+
+  /* Feed the watchdog to keep it from biting. */
+  Watchdog.reset();
 }
 
 /**************************************************************************************
  * FUNCTION DEFINITION
  **************************************************************************************/
-
-void spi_select()
-{
-  digitalWrite(MKRCAN_MCP2515_CS_PIN, LOW);
-}
-
-void spi_deselect()
-{
-  digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
-}
-
-uint8_t spi_transfer(uint8_t const data)
-{
-  return SPI.transfer(data);
-}
-
-void onExternalEvent()
-{
-  mcp2515.onExternalEventHandler();
-}
-
-bool transmitCanFrame(CanardFrame const & frame)
-{
-  return mcp2515.transmit(frame);
-}
-
-void onReceiveBufferFull(CanardFrame const & frame)
-{
-  uc.onCanFrameReceived(frame);
-}
 
 void onLed1_Received(CanardTransfer const & transfer, ArduinoUAVCAN & /* uavcan */)
 {

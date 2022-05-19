@@ -32,7 +32,7 @@ jobs:
 
       - name: Compile
         uses: arduino/compile-sketches@main
-        with: 
+        with:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           enable-deltas-report: true
@@ -41,10 +41,12 @@ jobs:
             - name: 107-Arduino-AS504x
             - name: 107-Arduino-MCP2515
             - name: 107-Arduino-UAVCAN
-          
+            - name: I2C_Eeprom
+            - source-url: https://github.com/adafruit/Adafruit_SleepyDog.git
+
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: leg-controller
-            
+
       - name: Save memory usage change report as artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v2

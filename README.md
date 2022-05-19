@@ -1,11 +1,16 @@
-# Firmware for the L3X-Z Hexapod leg controller
-[![Check Arduino](https://github.com/107-systems/l3xz-fw_leg-controller/actions/workflows/check-arduino.yml/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions/workflows/check-arduino.yml)
+<a href="https://107-systems.org/"><img align="right" src="https://raw.githubusercontent.com/107-systems/.github/main/logo/107-systems.png" width="15%"></a>
+:floppy_disk: Firmware for L3X-Z [leg controller](https://github.com/107-systems/l3xz-hw_leg-controller)
+========================================================================================================
 [![Check keywords.txt](https://github.com/107-systems/l3xz-fw_leg-controller/actions/workflows/check-keywords-txt.yml/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions/workflows/check-keywords-txt.yml)
 [![General Formatting Checks](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/General%20Formatting%20Checks/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=General+Formatting+Checks)
 [![Spell Check](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/Spell%20Check/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=Spell+Check)
 [![Compile Examples](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/Compile/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=Compile)
 
-https://github.com/107-systems/l3xz-hw_leg-controller
+### How-to-build/upload
+```bash
+arduino-cli compile -b arduino:samd:nano_33_iot -v leg-controller
+arduino-cli upload -b arduino:samd:nano_33_iot -v leg-controller -p /dev/ttyACM0
+```
 
 ## uavcan settings
 
