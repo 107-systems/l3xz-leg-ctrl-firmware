@@ -250,7 +250,7 @@ void loop()
      prev_heartbeat = now;
    }
 
-  if((now - prev_angle_sensor) > 100)
+  if((now - prev_angle_sensor) > 50)
   {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     float const a_angle_deg = (a_angle_raw * 360.0) / 16384.0f; /* 2^14 */
