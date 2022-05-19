@@ -215,16 +215,18 @@ void loop()
   if(now - prev > 1000) {
   /* read AS5048_A value */
     Serial.print("Requesting AS5048 A angle...");
-    float a_angle=angle_A_pos_sensor.angle_raw();
-    Serial.println(a_angle);
-    uavcan_as5048_a.data.value = a_angle;
+    float const a_angle_raw = angle_A_pos_sensor.angle_raw();
+    float const a_angle_deg = (a_angle_raw * 360.0) / 16384.0f; /* 2^14 */
+    Serial.println(a_angle_deg);
+    uavcan_as5048_a.data.value = a_angle_deg;
     uc->publish(uavcan_as5048_a);
 
   /* read AS5048_B value */
     Serial.print("Requesting AS5048 B angle...");
-    float b_angle=angle_B_pos_sensor.angle_raw();
-    Serial.println(b_angle);
-    uavcan_as5048_b.data.value = b_angle;
+    float const b_angle_raw = angle_B_pos_sensor.angle_raw();
+    float const b_angle_deg = (b_angle_raw * 360.0) / 16384.0f; /* 2^14 */
+    Serial.println(b_angle_deg);
+    uavcan_as5048_b.data.value = b_angle_deg;
     uc->publish(uavcan_as5048_b);
 
   /* read analog value */
