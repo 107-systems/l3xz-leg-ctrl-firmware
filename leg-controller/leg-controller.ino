@@ -47,17 +47,19 @@ using namespace uavcan::primitive::scalar;
  * CONSTANTS
  **************************************************************************************/
 
-static int const MKRCAN_MCP2515_CS_PIN  = 3;
-static int const MKRCAN_MCP2515_INT_PIN = 9;
-static CanardPortID const ID_INPUT_VOLTAGE = 1001U;
-static CanardPortID const ID_AS5048_A      = 1002U;
-static CanardPortID const ID_AS5048_B      = 1003U;
-static CanardPortID const ID_BUMPER        = 1004U;
-static CanardPortID const ID_LED1          = 1005U;
-static int         const AS504x_A_CS_PIN = 4;
-static int         const AS504x_B_CS_PIN = 5;
-static SPISettings const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
+static int          const MKRCAN_MCP2515_CS_PIN  = 3;
+static int          const MKRCAN_MCP2515_INT_PIN = 9;
+static int          const AS504x_A_CS_PIN        = 4;
+static int          const AS504x_B_CS_PIN        = 5;
 
+static CanardPortID const ID_INPUT_VOLTAGE       = 1001U;
+static CanardPortID const ID_AS5048_A            = 1002U;
+static CanardPortID const ID_AS5048_B            = 1003U;
+static CanardPortID const ID_BUMPER              = 1004U;
+static CanardPortID const ID_LED1                = 1005U;
+
+static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
+static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
 
 /**************************************************************************************
  * FUNCTION DECLARATION
@@ -71,11 +73,19 @@ void onLed1_Received (CanardTransfer const &, ArduinoUAVCAN &);
 
 static ArduinoUAVCAN * uc = nullptr;
 
-ArduinoMCP2515 mcp2515([]() { digitalWrite(MKRCAN_MCP2515_CS_PIN, LOW); },
-                       []() { digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH); },
-                       [](uint8_t const data) { return SPI.transfer(data); },
+ArduinoMCP2515 mcp2515([]()
+                       {
+                         SPI.beginTransaction(MCP2515x_SPI_SETTING);
+                         digitalWrite(MKRCAN_MCP2515_CS_PIN, LOW);
+                       },
+                       []()
+                       {
+                         digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
+                         SPI.endTransaction();
+                       },
+                       [](uint8_t const d) { return SPI.transfer(d); },
                        micros,
-                       [](CanardFrame const & frame) { uc->onCanFrameReceived(frame); },
+                       [](CanardFrame const & f) { uc->onCanFrameReceived(f); },
                        nullptr);
 
 Heartbeat_1_0<> hb;
@@ -105,9 +115,8 @@ I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
 void setup()
 {
-  Serial.begin(9600);
-  delay(3000);
-//  while(!Serial) { } /* only for debug */
+  Serial.begin(115200);
+  while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
@@ -205,40 +214,49 @@ void loop()
   }
   else flag_led=0;
 
-  /* Update the heartbeat object */
-  hb.data.uptime = millis() / 1000;
-  hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
+  /* Publish all the gathered data, although at various
+   * different intervals.
+   */
+  static unsigned long prev_heartbeat = 0;
+  static unsigned long prev_angle_sensor = 0;
+  static unsigned long prev_battery_voltage = 0;
 
-  /* Publish the heartbeat once/second */
-  static unsigned long prev = 0;
   unsigned long const now = millis();
-  if(now - prev > 1000) {
-  /* read AS5048_A value */
-    Serial.print("Requesting AS5048 A angle...");
+
+  if((now - prev_heartbeat) > 1000)
+  {
+     hb.data.uptime = millis() / 1000;
+     hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
+     Serial.println(hb.data.uptime);
+     uc->publish(hb);
+     prev_heartbeat = now;
+   }
+
+  if((now - prev_angle_sensor) > 100)
+  {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     float const a_angle_deg = (a_angle_raw * 360.0) / 16384.0f; /* 2^14 */
     Serial.println(a_angle_deg);
     uavcan_as5048_a.data.value = a_angle_deg;
     uc->publish(uavcan_as5048_a);
 
-  /* read AS5048_B value */
-    Serial.print("Requesting AS5048 B angle...");
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
     float const b_angle_deg = (b_angle_raw * 360.0) / 16384.0f; /* 2^14 */
     Serial.println(b_angle_deg);
     uavcan_as5048_b.data.value = b_angle_deg;
     uc->publish(uavcan_as5048_b);
 
-  /* read analog value */
-    float analog=analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
+    prev_angle_sensor = now;
+  }
+
+  if((now - prev_battery_voltage) > (10*1000))
+  {
+    float const analog = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
     Serial.print("Analog Pin: ");
     Serial.println(analog);
     uavcan_input_voltage.data.value = analog;
     uc->publish(uavcan_input_voltage);
-
-  /* publish heartbeat */
-    uc->publish(hb);
-    prev = now;
+    prev_battery_voltage = now;
   }
 
   /* Transmit all enqeued CAN frames */
