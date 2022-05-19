@@ -1,5 +1,5 @@
 /*
- * Software to programm the node-id on the leg controller for the L3X-Z Hexapod
+ * Software to program the node-id on the leg controller for the L3X-Z Hexapod
  *
  * Hardware:
  *   - Arduino Nano 33 IoT
