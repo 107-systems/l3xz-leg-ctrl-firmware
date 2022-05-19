@@ -75,6 +75,7 @@ static ArduinoUAVCAN * uc = nullptr;
 
 ArduinoMCP2515 mcp2515([]()
                        {
+                         noInterrupts();
                          SPI.beginTransaction(MCP2515x_SPI_SETTING);
                          digitalWrite(MKRCAN_MCP2515_CS_PIN, LOW);
                        },
@@ -82,6 +83,7 @@ ArduinoMCP2515 mcp2515([]()
                        {
                          digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
                          SPI.endTransaction();
+                         interrupts();
                        },
                        [](uint8_t const d) { return SPI.transfer(d); },
                        micros,
@@ -94,14 +96,30 @@ Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
 Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
 Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
 
-ArduinoAS504x angle_A_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING); },
-                                 [](){ SPI.endTransaction(); },
+ArduinoAS504x angle_A_pos_sensor([]()
+                                 {
+                                   noInterrupts();
+                                   SPI.beginTransaction(AS504x_SPI_SETTING);
+                                 },
+                                 []()
+                                 {
+                                  SPI.endTransaction();
+                                  interrupts();
+                                 },
                                  [](){ digitalWrite(AS504x_A_CS_PIN, LOW); },
                                  [](){ digitalWrite(AS504x_A_CS_PIN, HIGH); },
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                  delayMicroseconds);
-ArduinoAS504x angle_B_pos_sensor([](){ SPI.beginTransaction(AS504x_SPI_SETTING); },
-                                 [](){ SPI.endTransaction(); },
+ArduinoAS504x angle_B_pos_sensor([]()
+                                 {
+                                   noInterrupts();
+                                   SPI.beginTransaction(AS504x_SPI_SETTING);
+                                 },
+                                 []()
+                                 {
+                                  SPI.endTransaction();
+                                  interrupts();
+                                 },
                                  [](){ digitalWrite(AS504x_B_CS_PIN, LOW); },
                                  [](){ digitalWrite(AS504x_B_CS_PIN, HIGH); },
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
