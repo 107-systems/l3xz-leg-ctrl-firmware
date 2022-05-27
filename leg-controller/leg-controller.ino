@@ -92,7 +92,6 @@ ArduinoMCP2515 mcp2515([]()
                        nullptr);
 
 Heartbeat_1_0<> hb;
-Bit_1_0<ID_BUMPER> uavcan_bumper;
 Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
 Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
 Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
@@ -184,7 +183,6 @@ void setup()
   mcp2515.setNormalMode();
 
   /* Configure initial values */
-  uavcan_bumper.data.value = false;
   uavcan_input_voltage.data.value = 0.0;
   uavcan_as5048_a.data.value = 0.0;
   uavcan_as5048_b.data.value = 0.0;
@@ -204,21 +202,8 @@ void setup()
 
 void loop()
 {
-  /* check switch */
-  static bool bumper_old=0;
-  static bool flag_led=0;
-  bool bumper_in;
-  bumper_in=digitalRead(BUMPER);
-  if(bumper_old!=bumper_in)
-  {
-    uavcan_bumper.data.value = bumper_in;
-    uc->publish(uavcan_bumper);
-    Serial.print("send bit: ");
-    Serial.println(bumper_in);
-  }
-  bumper_old=bumper_in;
-
   /* toggle LEDS */
+  static bool flag_led=0;
   if((millis()%200)==0)
   {
     if(flag_led==0) // execute only once
@@ -242,6 +227,7 @@ void loop()
    * different intervals.
    */
   static unsigned long prev_heartbeat = 0;
+  static unsigned long prev_bumper = 0;
   static unsigned long prev_angle_sensor = 0;
   static unsigned long prev_battery_voltage = 0;
 
@@ -255,6 +241,14 @@ void loop()
      uc->publish(hb);
      prev_heartbeat = now;
    }
+
+  if((now - prev_bumper) > 100)
+  {
+    Bit_1_0<ID_BUMPER> uavcan_bumper;
+    uavcan_bumper.data.value = digitalRead(BUMPER);
+    uc->publish(uavcan_bumper);
+    prev_bumper = now;
+  }
 
   if((now - prev_angle_sensor) > 50)
   {
