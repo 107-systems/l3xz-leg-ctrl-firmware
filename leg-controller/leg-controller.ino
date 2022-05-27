@@ -91,11 +91,6 @@ ArduinoMCP2515 mcp2515([]()
                        [](CanardFrame const & f) { uc->onCanFrameReceived(f); },
                        nullptr);
 
-Heartbeat_1_0<> hb;
-Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
-Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
-Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
-
 ArduinoAS504x angle_A_pos_sensor([]()
                                  {
                                    noInterrupts();
@@ -126,6 +121,8 @@ ArduinoAS504x angle_B_pos_sensor([]()
                                  delayMicroseconds);
 
 I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
+
+Heartbeat_1_0<> hb;
 
 /**************************************************************************************
  * SETUP/LOOP
@@ -182,10 +179,6 @@ void setup()
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
 
-  /* Configure initial values */
-  uavcan_input_voltage.data.value = 0.0;
-  uavcan_as5048_a.data.value = 0.0;
-  uavcan_as5048_b.data.value = 0.0;
   /* Configure initial heartbeat */
   hb.data.uptime = 0;
   hb = Heartbeat_1_0<>::Health::NOMINAL;
@@ -255,12 +248,14 @@ void loop()
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     float const a_angle_deg = (a_angle_raw * 360.0) / 16384.0f; /* 2^14 */
     Serial.println(a_angle_deg);
+    Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
     uavcan_as5048_a.data.value = a_angle_deg;
     uc->publish(uavcan_as5048_a);
 
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
     float const b_angle_deg = (b_angle_raw * 360.0) / 16384.0f; /* 2^14 */
     Serial.println(b_angle_deg);
+    Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
     uavcan_as5048_b.data.value = b_angle_deg;
     uc->publish(uavcan_as5048_b);
 
@@ -272,6 +267,7 @@ void loop()
     float const analog = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
     Serial.print("Analog Pin: ");
     Serial.println(analog);
+    Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
     uavcan_input_voltage.data.value = analog;
     uc->publish(uavcan_input_voltage);
     prev_battery_voltage = now;
