@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/compile-fw.yml"
-      - "./l3xz-fw_leg-controller.ino"
+      - "l3xz-fw_leg-controller.ino"
       - "extra/**"
 
   push:
