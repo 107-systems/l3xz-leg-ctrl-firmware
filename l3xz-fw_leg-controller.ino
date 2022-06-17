@@ -21,8 +21,8 @@
 #include <Wire.h>
 
 
-#include <ArduinoUAVCAN.h>
-#include <ArduinoMCP2515.h>
+#include <107-Arduino-Cyphal.h>
+#include <107-Arduino-MCP2515.h>
 #include <107-Arduino-AS504x.h>
 #include <I2C_eeprom.h>
 #include <Adafruit_SleepyDog.h>
@@ -66,13 +66,13 @@ static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
  * FUNCTION DECLARATION
  **************************************************************************************/
 
-void onLed1_Received (CanardTransfer const &, ArduinoUAVCAN &);
+void onLed1_Received (CanardRxTransfer const &, Node &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
  **************************************************************************************/
 
-static ArduinoUAVCAN * uc = nullptr;
+static Node * uc = nullptr;
 
 ArduinoMCP2515 mcp2515([]()
                        {
@@ -88,7 +88,7 @@ ArduinoMCP2515 mcp2515([]()
                        },
                        [](uint8_t const d) { return SPI.transfer(d); },
                        micros,
-                       [](CanardFrame const & f) { uc->onCanFrameReceived(f); },
+                       [](CanardFrame const & f) { uc->onCanFrameReceived(f, micros()); },
                        nullptr);
 
 ArduinoAS504x angle_A_pos_sensor([]()
@@ -156,7 +156,7 @@ void setup()
   Serial.println(eeNodeID);
 
   /* create UAVCAN class */
-  uc = new ArduinoUAVCAN(eeNodeID, [](CanardFrame const & frame) -> bool { return mcp2515.transmit(frame); });
+  uc = new Node(eeNodeID, [](CanardFrame const & frame) -> bool { return mcp2515.transmit(frame); });
 
   /* Setup SPI access */
   SPI.begin();
@@ -284,7 +284,7 @@ void loop()
  * FUNCTION DEFINITION
  **************************************************************************************/
 
-void onLed1_Received(CanardTransfer const & transfer, ArduinoUAVCAN & /* uavcan */)
+void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
 {
   Bit_1_0<ID_LED1> const uavcan_led1 = Bit_1_0<ID_LED1>::deserialize(transfer);
 
