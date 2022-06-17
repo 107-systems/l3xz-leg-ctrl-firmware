@@ -66,13 +66,12 @@ static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
  * FUNCTION DECLARATION
  **************************************************************************************/
 
+void onReceiveBufferFull(CanardFrame const &);
 void onLed1_Received (CanardRxTransfer const &, Node &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
  **************************************************************************************/
-
-static Node * node_hdl_ptr = nullptr;
 
 ArduinoMCP2515 mcp2515([]()
                        {
@@ -88,8 +87,10 @@ ArduinoMCP2515 mcp2515([]()
                        },
                        [](uint8_t const d) { return SPI.transfer(d); },
                        micros,
-                       [](CanardFrame const & f) { node_hdl_ptr->onCanFrameReceived(f, micros()); },
+                       onReceiveBufferFull,
                        nullptr);
+
+Node node_hdl([](CanardFrame const & frame) -> bool { return mcp2515.transmit(frame); });
 
 ArduinoAS504x angle_A_pos_sensor([]()
                                  {
@@ -156,7 +157,7 @@ void setup()
   Serial.println(eeNodeID);
 
   /* create UAVCAN class */
-  node_hdl_ptr = new Node(eeNodeID, [](CanardFrame const & frame) -> bool { return mcp2515.transmit(frame); });
+  node_hdl.setNodeId(eeNodeID);
 
   /* Setup SPI access */
   SPI.begin();
@@ -186,7 +187,7 @@ void setup()
   hb.data.vendor_specific_status_code = 0;
 
   /* Subscribe to the reception of Bit message. */
-  node_hdl_ptr->subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
+  node_hdl.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   Serial.println("init finished");
 
   /* Feed the watchdog to keep it from biting. */
@@ -231,7 +232,7 @@ void loop()
      hb.data.uptime = millis() / 1000;
      hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
      Serial.println(hb.data.uptime);
-     node_hdl_ptr->publish(hb);
+     node_hdl.publish(hb);
      prev_heartbeat = now;
    }
 
@@ -239,7 +240,7 @@ void loop()
   {
     Bit_1_0<ID_BUMPER> uavcan_bumper;
     uavcan_bumper.data.value = digitalRead(BUMPER);
-    node_hdl_ptr->publish(uavcan_bumper);
+    node_hdl.publish(uavcan_bumper);
     prev_bumper = now;
   }
 
@@ -250,14 +251,14 @@ void loop()
     Serial.println(a_angle_deg);
     Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
     uavcan_as5048_a.data.value = a_angle_deg;
-    node_hdl_ptr->publish(uavcan_as5048_a);
+    node_hdl.publish(uavcan_as5048_a);
 
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
     float const b_angle_deg = (b_angle_raw * 360.0) / 16384.0f; /* 2^14 */
     Serial.println(b_angle_deg);
     Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
     uavcan_as5048_b.data.value = b_angle_deg;
-    node_hdl_ptr->publish(uavcan_as5048_b);
+    node_hdl.publish(uavcan_as5048_b);
 
     prev_angle_sensor = now;
   }
@@ -269,12 +270,12 @@ void loop()
     Serial.println(analog);
     Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
     uavcan_input_voltage.data.value = analog;
-    node_hdl_ptr->publish(uavcan_input_voltage);
+    node_hdl.publish(uavcan_input_voltage);
     prev_battery_voltage = now;
   }
 
   /* Transmit all enqeued CAN frames */
-  while(node_hdl_ptr->transmitCanFrame()) { }
+  while(node_hdl.transmitCanFrame()) { }
 
   /* Feed the watchdog to keep it from biting. */
   Watchdog.reset();
@@ -283,6 +284,11 @@ void loop()
 /**************************************************************************************
  * FUNCTION DEFINITION
  **************************************************************************************/
+
+void onReceiveBufferFull(CanardFrame const & frame)
+{
+  node_hdl.onCanFrameReceived(frame, micros());
+}
 
 void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
 {
