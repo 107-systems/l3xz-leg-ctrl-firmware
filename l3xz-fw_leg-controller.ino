@@ -206,7 +206,7 @@ void setup()
   hb.data.vendor_specific_status_code = 0;
 
   /* Subscribe to the GetInfo request */
-  node_hdl_ptr->subscribe<GetInfo_1_0::Request<>>(onGetInfo_1_0_Request_Received);
+  node_hdl.subscribe<GetInfo_1_0::Request<>>(onGetInfo_1_0_Request_Received);
   /* Subscribe to the reception of Bit message. */
   node_hdl.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   Serial.println("init finished");
