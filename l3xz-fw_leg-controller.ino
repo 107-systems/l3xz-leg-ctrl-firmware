@@ -62,7 +62,6 @@ static CanardPortID const ID_LED1                = 1005U;
 static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
 static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
 
-static const uint8_t UC_NAME[50] = "pl.simle.r5.tensocan";
 static const uavcan_node_GetInfo_Response_1_0 GET_INFO_DATA = {
     /// uavcan.node.Version.1.0 protocol_version
     {1, 0},
