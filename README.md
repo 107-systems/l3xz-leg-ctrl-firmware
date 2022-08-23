@@ -5,6 +5,10 @@
 [![Spell Check](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/Spell%20Check/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=Spell+Check)
 [![Compile Examples](https://github.com/107-systems/l3xz-fw_leg-controller/workflows/Compile/badge.svg)](https://github.com/107-systems/l3xz-fw_leg-controller/actions?workflow=Compile)
 
+<p align="center">
+  <a href="https://github.com/107-systems/l3xz"><img src="https://raw.githubusercontent.com/107-systems/.github/main/logo/l3xz-logo-memento-mori-github.png" width="30%"></a>
+</p>
+
 ### How-to-build/upload
 ```bash
 arduino-cli compile -b arduino:samd:nano_33_iot -v .
