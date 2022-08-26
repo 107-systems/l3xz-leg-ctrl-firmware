@@ -43,6 +43,7 @@ jobs:
             - source-path: ./
             - name: 107-Arduino-AS504x
             - name: 107-Arduino-MCP2515
+            - name: 107-Arduino-Debug
             - source-url: https://github.com/107-systems/107-Arduino-Cyphal.git
             - name: I2C_Eeprom
             - source-url: https://github.com/adafruit/Adafruit_SleepyDog.git

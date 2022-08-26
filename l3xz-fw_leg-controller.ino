@@ -31,7 +31,7 @@
 #define DBG_ENABLE_WARNING
 #define DBG_ENABLE_INFO
 #define DBG_ENABLE_DEBUG
-#include <ArduinoDebug.hpp>
+#include <107-Arduino-Debug.hpp>
 
 /**************************************************************************************
  * DEFINES
