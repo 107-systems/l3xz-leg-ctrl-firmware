@@ -17,15 +17,21 @@
 /**************************************************************************************
  * INCLUDE
  **************************************************************************************/
+
 #include <SPI.h>
 #include <Wire.h>
-
 
 #include <107-Arduino-Cyphal.h>
 #include <107-Arduino-MCP2515.h>
 #include <107-Arduino-AS504x.h>
 #include <I2C_eeprom.h>
 #include <Adafruit_SleepyDog.h>
+
+#define DBG_ENABLE_ERROR
+#define DBG_ENABLE_WARNING
+#define DBG_ENABLE_INFO
+#define DBG_ENABLE_DEBUG
+#include <ArduinoDebug.hpp>
 
 /**************************************************************************************
  * DEFINES
@@ -66,16 +72,6 @@ union UniqueId
  * CONSTANTS
  **************************************************************************************/
 
-UniqueId const UNIQUE_ID = []()
-{
-  UniqueId uid;
-  uid.word_buf.w0 = ATSAMD21G18_SERIAL_NUMBER_WORD_0;
-  uid.word_buf.w1 = ATSAMD21G18_SERIAL_NUMBER_WORD_1;
-  uid.word_buf.w2 = ATSAMD21G18_SERIAL_NUMBER_WORD_2;
-  uid.word_buf.w3 = ATSAMD21G18_SERIAL_NUMBER_WORD_3;
-  return uid;
-} ();
-
 static int          const MKRCAN_MCP2515_CS_PIN  = 3;
 static int          const MKRCAN_MCP2515_INT_PIN = 9;
 static int          const AS504x_A_CS_PIN        = 4;
@@ -111,6 +107,12 @@ static const uavcan_node_GetInfo_Response_1_0 NODE_INFO = {
         "107-systems.l3xz-fw_leg-controller",
         strlen("107-systems.l3xz-fw_leg-controller")},
 };
+
+/**************************************************************************************
+ * VARIABLES
+ **************************************************************************************/
+
+DEBUG_INSTANCE(80, Serial);
 
 static float a_angle_deg        = 0.0f;
 static float b_angle_deg        = 0.0f;
@@ -206,12 +208,12 @@ void setup()
   ee.begin();
   if (! ee.isConnected())
   {
-    Serial.println("ERROR: Can't find eeprom\nstopped...");
-    while (1);
+    DBG_ERROR("can't find EEPROM.");
+    for(;;) { }
   }
-  uint8_t const eeNodeID=ee.readByte(0);
-  Serial.print("Node-ID from eeprom: ");
-  Serial.println(eeNodeID);
+
+  uint8_t const eeNodeID = ee.readByte(0);
+  DBG_INFO("node-ID read from EEPROM: %d", static_cast<int>(eeNodeID));
 
   /* create UAVCAN class */
   node_hdl.setNodeId(eeNodeID);
@@ -250,7 +252,7 @@ void setup()
   /* Subscribe to incoming service requests */
   node_hdl.subscribe<ExecuteCommand_1_0::Request<>>(onExecuteCommand_1_0_Request_Received);
 
-  Serial.println("init finished");
+  DBG_INFO("initialisation finished");
 
   /* Feed the watchdog to keep it from biting. */
   Watchdog.reset();
@@ -293,8 +295,9 @@ void loop()
   {
      hb.data.uptime = millis() / 1000;
      hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
-     Serial.println(hb.data.uptime);
      node_hdl.publish(hb);
+     DBG_INFO("TX Heartbeat (uptime: %d)", hb.data.uptime);
+
      prev_heartbeat = now;
    }
 
@@ -303,6 +306,7 @@ void loop()
     Bit_1_0<ID_BUMPER> uavcan_bumper;
     uavcan_bumper.data.value = digitalRead(BUMPER);
     node_hdl.publish(uavcan_bumper);
+
     prev_bumper = now;
   }
 
@@ -310,17 +314,17 @@ void loop()
   {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
-    Serial.println(a_angle_deg);
     Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
     uavcan_as5048_a.data.value = a_angle_deg - a_angle_offset_deg;
     node_hdl.publish(uavcan_as5048_a);
+    DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
 
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
     b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
-    Serial.println(b_angle_deg);
     Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
     uavcan_as5048_b.data.value = b_angle_deg - b_angle_offset_deg;
     node_hdl.publish(uavcan_as5048_b);
+    DBG_INFO("TX tibia angle: %0.f (offset: %0.2f)", b_angle_deg, b_angle_offset_deg);
 
     prev_angle_sensor = now;
   }
@@ -328,11 +332,11 @@ void loop()
   if((now - prev_battery_voltage) > (10*1000))
   {
     float const analog = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
-    Serial.print("Analog Pin: ");
-    Serial.println(analog);
     Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
     uavcan_input_voltage.data.value = analog;
     node_hdl.publish(uavcan_input_voltage);
+    DBG_INFO("TX vbat: %0.2f", analog);
+
     prev_battery_voltage = now;
   }
 
@@ -356,20 +360,18 @@ void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
 {
   Bit_1_0<ID_LED1> const uavcan_led1 = Bit_1_0<ID_LED1>::deserialize(transfer);
 
+  DBG_INFO("onLed1_Received: %d", uavcan_led1.data.value);
+
   if(uavcan_led1.data.value)
-  {
     digitalWrite(LED1_PIN, HIGH);
-    Serial.println("Received Bit1: true");
-  }
   else
-  {
     digitalWrite(LED1_PIN, LOW);
-    Serial.println("Received Bit1: false");
-  }
 }
 
 void onGetInfo_1_0_Request_Received(CanardRxTransfer const &transfer, Node & node_hdl)
 {
+  DBG_INFO("onGetInfo_1_0_Request_Received");
+
   GetInfo_1_0::Response<> rsp = GetInfo_1_0::Response<>();
   memcpy(&rsp.data, &NODE_INFO, sizeof(uavcan_node_GetInfo_Response_1_0));
   node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
@@ -384,6 +386,8 @@ void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const & transfer, No
     /* Capture the angle offset. */
     a_angle_offset_deg = a_angle_deg;
     b_angle_offset_deg = b_angle_deg;
+
+    DBG_INFO("onExecuteCommand_1_0_Request_Received:\n\toffset femur: %0.2f\n\toffset tibia: %0.2f", a_angle_offset_deg, b_angle_offset_deg);
 
     /* Send the response. */
     ExecuteCommand_1_0::Response<> rsp;
