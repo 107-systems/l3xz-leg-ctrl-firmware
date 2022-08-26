@@ -112,6 +112,8 @@ static const uavcan_node_GetInfo_Response_1_0 NODE_INFO = {
         strlen("107-systems.l3xz-fw_leg-controller")},
 };
 
+static float a_angle_deg        = 0.0f;
+static float b_angle_deg        = 0.0f;
 static float a_angle_offset_deg = 0.0f;
 static float b_angle_offset_deg = 0.0f;
 
@@ -307,17 +309,17 @@ void loop()
   if((now - prev_angle_sensor) > 50)
   {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
-    float const a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */) - a_angle_offset_deg;
+    a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     Serial.println(a_angle_deg);
     Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
-    uavcan_as5048_a.data.value = a_angle_deg;
+    uavcan_as5048_a.data.value = a_angle_deg - a_angle_offset_deg;
     node_hdl.publish(uavcan_as5048_a);
 
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
-    float const b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */) - b_angle_offset_deg;
+    b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     Serial.println(b_angle_deg);
     Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
-    uavcan_as5048_b.data.value = b_angle_deg;
+    uavcan_as5048_b.data.value = b_angle_deg - b_angle_offset_deg;
     node_hdl.publish(uavcan_as5048_b);
 
     prev_angle_sensor = now;
@@ -379,6 +381,11 @@ void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const & transfer, No
 
   if (req.data.command == 0xCAFE && transfer.metadata.remote_node_id == node_hdl.getNodeId())
   {
+    /* Capture the angle offset. */
+    a_angle_offset_deg = a_angle_deg;
+    b_angle_offset_deg = b_angle_deg;
+
+    /* Send the response. */
     ExecuteCommand_1_0::Response<> rsp;
     rsp = ExecuteCommand_1_0::Response<>::Status::SUCCESS;
     node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
