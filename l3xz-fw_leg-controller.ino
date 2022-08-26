@@ -260,36 +260,32 @@ void setup()
 
 void loop()
 {
-  /* toggle LEDS */
-  static bool flag_led=0;
-  if((millis()%200)==0)
-  {
-    if(flag_led==0) // execute only once
-    {
-      if(digitalRead(LED2_PIN)==LOW)
-      {
-        digitalWrite(LED2_PIN, HIGH);
-        digitalWrite(LED3_PIN, LOW);
-      }
-      else
-      {
-        digitalWrite(LED2_PIN, LOW);
-        digitalWrite(LED3_PIN, HIGH);
-      }
-    }
-    flag_led=1;
-  }
-  else flag_led=0;
-
   /* Publish all the gathered data, although at various
    * different intervals.
    */
+  static unsigned long prev_led = 0;
   static unsigned long prev_heartbeat = 0;
   static unsigned long prev_bumper = 0;
   static unsigned long prev_angle_sensor = 0;
   static unsigned long prev_battery_voltage = 0;
 
   unsigned long const now = millis();
+
+  if((now - prev_led) > 200)
+  {
+    if (digitalRead(LED2_PIN) == LOW)
+    {
+      digitalWrite(LED2_PIN, HIGH);
+      digitalWrite(LED3_PIN, LOW);
+    }
+    else
+    {
+      digitalWrite(LED2_PIN, LOW);
+      digitalWrite(LED3_PIN, HIGH);
+    }
+
+    prev_led = now;
+  }
 
   if((now - prev_heartbeat) > 1000)
   {
