@@ -72,6 +72,16 @@ union UniqueId
  * CONSTANTS
  **************************************************************************************/
 
+UniqueId const UNIQUE_ID = []()
+{
+  UniqueId uid;
+  uid.word_buf.w0 = ATSAMD21G18_SERIAL_NUMBER_WORD_0;
+  uid.word_buf.w1 = ATSAMD21G18_SERIAL_NUMBER_WORD_1;
+  uid.word_buf.w2 = ATSAMD21G18_SERIAL_NUMBER_WORD_2;
+  uid.word_buf.w3 = ATSAMD21G18_SERIAL_NUMBER_WORD_3;
+  return uid;
+} ();
+
 static int          const MKRCAN_MCP2515_CS_PIN  = 3;
 static int          const MKRCAN_MCP2515_INT_PIN = 9;
 static int          const AS504x_A_CS_PIN        = 4;
