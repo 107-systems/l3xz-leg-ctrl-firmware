@@ -362,7 +362,6 @@ void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
 void onGetInfo_1_0_Request_Received(CanardRxTransfer const &transfer, Node & node_hdl)
 {
   GetInfo_1_0::Response<> rsp = GetInfo_1_0::Response<>();
-  rsp.data = NODE_INFO;
-  Serial.println("onGetInfo_1_0_Request_Received");
+  memcpy(&rsp.data, &NODE_INFO, sizeof(uavcan_node_GetInfo_Response_1_0));
   node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
 }
