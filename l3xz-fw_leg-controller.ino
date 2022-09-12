@@ -90,7 +90,7 @@ static CanardPortID const ID_LED1                = 1005U;
 static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
 static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
 
-static const uavcan_node_GetInfo_Response_1_0 GET_INFO_DATA = {
+static const uavcan_node_GetInfo_Response_1_0 NODE_INFO = {
     /// uavcan.node.Version.1.0 protocol_version
     {1, 0},
     /// uavcan.node.Version.1.0 hardware_version
@@ -362,7 +362,7 @@ void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
 void onGetInfo_1_0_Request_Received(CanardRxTransfer const &transfer, Node & node_hdl)
 {
   GetInfo_1_0::Response<> rsp = GetInfo_1_0::Response<>();
-  rsp.data = GET_INFO_DATA;
+  rsp.data = NODE_INFO;
   Serial.println("onGetInfo_1_0_Request_Received");
   node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
 }
