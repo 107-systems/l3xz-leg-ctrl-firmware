@@ -33,6 +33,8 @@
 #define DBG_ENABLE_DEBUG
 #include <107-Arduino-Debug.hpp>
 
+#include "NodeInfo.h"
+
 /**************************************************************************************
  * DEFINES
  **************************************************************************************/
@@ -43,11 +45,6 @@
 #define BUMPER 6
 #define ANALOG_PIN A1
 
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_0  *(volatile uint32_t*)(0x0080A00C)
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_1  *(volatile uint32_t*)(0x0080A040)
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_2  *(volatile uint32_t*)(0x0080A044)
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_3  *(volatile uint32_t*)(0x0080A048)
-
 /**************************************************************************************
  * NAMESPACE
  **************************************************************************************/
@@ -56,31 +53,8 @@ using namespace uavcan::node;
 using namespace uavcan::primitive::scalar;
 
 /**************************************************************************************
- * TYPEDEF
- **************************************************************************************/
-
-union UniqueId
-{
-  struct __attribute__((packed))
-  {
-    uint32_t w0, w1, w2, w3;
-  } word_buf;
-  uint8_t byte_buf[16];
-};
-
-/**************************************************************************************
  * CONSTANTS
  **************************************************************************************/
-
-UniqueId const UNIQUE_ID = []()
-{
-  UniqueId uid;
-  uid.word_buf.w0 = ATSAMD21G18_SERIAL_NUMBER_WORD_0;
-  uid.word_buf.w1 = ATSAMD21G18_SERIAL_NUMBER_WORD_1;
-  uid.word_buf.w2 = ATSAMD21G18_SERIAL_NUMBER_WORD_2;
-  uid.word_buf.w3 = ATSAMD21G18_SERIAL_NUMBER_WORD_3;
-  return uid;
-} ();
 
 static int          const MKRCAN_MCP2515_CS_PIN  = 3;
 static int          const MKRCAN_MCP2515_INT_PIN = 9;
@@ -95,28 +69,6 @@ static CanardPortID const ID_LED1                = 1005U;
 
 static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
 static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
-
-static const uavcan_node_GetInfo_Response_1_0 NODE_INFO = {
-    /// uavcan.node.Version.1.0 protocol_version
-    {1, 0},
-    /// uavcan.node.Version.1.0 hardware_version
-    {1, 0},
-    /// uavcan.node.Version.1.0 software_version
-    {0, 1},
-    /// saturated uint64 software_vcs_revision_id
-    NULL,
-    /// saturated uint8[16] unique_id
-    {
-      UNIQUE_ID.byte_buf[ 0], UNIQUE_ID.byte_buf[ 1], UNIQUE_ID.byte_buf[ 2], UNIQUE_ID.byte_buf[ 3],
-      UNIQUE_ID.byte_buf[ 4], UNIQUE_ID.byte_buf[ 5], UNIQUE_ID.byte_buf[ 6], UNIQUE_ID.byte_buf[ 7],
-      UNIQUE_ID.byte_buf[ 8], UNIQUE_ID.byte_buf[ 9], UNIQUE_ID.byte_buf[10], UNIQUE_ID.byte_buf[11],
-      UNIQUE_ID.byte_buf[12], UNIQUE_ID.byte_buf[13], UNIQUE_ID.byte_buf[14], UNIQUE_ID.byte_buf[15]
-    },
-    /// saturated uint8[<=50] name
-    {
-        "107-systems.l3xz-fw_leg-controller",
-        strlen("107-systems.l3xz-fw_leg-controller")},
-};
 
 /**************************************************************************************
  * VARIABLES
@@ -270,6 +222,10 @@ void setup()
 
 void loop()
 {
+  /* Process all pending OpenCyphal actions.
+   */
+  node_hdl.spinSome();
+
   /* Publish all the gathered data, although at various
    * different intervals.
    */
@@ -345,9 +301,6 @@ void loop()
 
     prev_battery_voltage = now;
   }
-
-  /* Transmit all enqeued CAN frames */
-  while(node_hdl.transmitCanFrame()) { }
 
   /* Feed the watchdog to keep it from biting. */
   Watchdog.reset();
