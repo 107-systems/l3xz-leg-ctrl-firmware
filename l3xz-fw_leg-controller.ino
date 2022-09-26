@@ -61,6 +61,8 @@ static int          const MKRCAN_MCP2515_INT_PIN = 9;
 static int          const AS504x_A_CS_PIN        = 4;
 static int          const AS504x_B_CS_PIN        = 5;
 
+static CanardNodeID const LEG_CONTROLLER_NODE_ID = 31;
+
 static CanardPortID const ID_INPUT_VOLTAGE       = 1001U;
 static CanardPortID const ID_AS5048_A            = 1002U;
 static CanardPortID const ID_AS5048_B            = 1003U;
@@ -87,7 +89,11 @@ static float b_angle_offset_deg = 0.0f;
 
 void onReceiveBufferFull(CanardFrame const &);
 void onLed1_Received (CanardRxTransfer const &, Node &);
+
+/* Cyphal Service Requests */
+void onList_1_0_Request_Received(CanardRxTransfer const &, Node &);
 void onGetInfo_1_0_Request_Received(CanardRxTransfer const &, Node &);
+void onAccess_1_0_Request_Received(CanardRxTransfer const &, Node &);
 void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const &, Node &);
 
 /**************************************************************************************
@@ -143,6 +149,22 @@ ArduinoAS504x angle_B_pos_sensor([]()
                                  delayMicroseconds);
 
 I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
+
+/* REGISTER ***************************************************************************/
+
+static RegisterNatural8  reg_rw_uavcan_node_id               ("uavcan.node.id",               Register::Access::ReadWrite, LEG_CONTROLLER_NODE_ID,                  [&node_hdl](RegisterNatural8 const & reg) { node_hdl.setNodeId(reg.get()); });
+static RegisterString    reg_ro_uavcan_node_description      ("uavcan.node.description",      Register::Access::ReadWrite, "L3X-Z LEG_CONTROLLER",                  nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_inputvoltage_id   ("uavcan.pub.inputvoltage.id",   Register::Access::ReadOnly,  ID_INPUT_VOLTAGE,                        nullptr);
+static RegisterString    reg_ro_uavcan_pub_inputvoltage_type ("uavcan.pub.inputvoltage.type", Register::Access::ReadOnly,  "uavcan.primitive.scalar.Real32.1.0",    nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id       ("uavcan.pub.AS5048_a.id",       Register::Access::ReadOnly,  ID_AS5048_A,                             nullptr);
+static RegisterString    reg_ro_uavcan_pub_AS5048_a_type     ("uavcan.pub.AS5048_a.type",     Register::Access::ReadOnly,  "uavcan.primitive.scalar.Real32.1.0",    nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id       ("uavcan.pub.AS5048_b.id",       Register::Access::ReadOnly,  ID_AS5048_B,                             nullptr);
+static RegisterString    reg_ro_uavcan_pub_AS5048_b_type     ("uavcan.pub.AS5048_b.type",     Register::Access::ReadOnly,  "uavcan.primitive.scalar.Real32.1.0",    nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_bumper_id         ("uavcan.pub.bumper.id",         Register::Access::ReadOnly,  ID_BUMPER,                               nullptr);
+static RegisterString    reg_ro_uavcan_pub_bumper_type       ("uavcan.pub.bumper.type",       Register::Access::ReadOnly,  "uavcan.primitive.scalar.Bit.1.0",       nullptr);
+static RegisterNatural16 reg_ro_uavcan_sub_led1_id           ("uavcan.sub.led1.id",           Register::Access::ReadOnly,  ID_LED1,                                 nullptr);
+static RegisterString    reg_ro_uavcan_sub_led1_type         ("uavcan.sub.led1.type",         Register::Access::ReadOnly,  "uavcan.primitive.scalar.Bit.1.0",       nullptr);
+static RegisterList      reg_list;
 
 Heartbeat_1_0<> hb;
 
@@ -209,6 +231,19 @@ void setup()
 
   /* Subscribe to the GetInfo request */
   node_hdl.subscribe<GetInfo_1_0::Request<>>(onGetInfo_1_0_Request_Received);
+  reg_list.subscribe(node_hdl);
+  reg_list.add(reg_rw_uavcan_node_id);
+  reg_list.add(reg_ro_uavcan_node_description);
+  reg_list.add(reg_ro_uavcan_pub_inputvoltage_id);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_a_id);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_b_id);
+  reg_list.add(reg_ro_uavcan_pub_bumper_id);
+  reg_list.add(reg_ro_uavcan_sub_led1_id);
+  reg_list.add(reg_ro_uavcan_pub_inputvoltage_type);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_a_type);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_b_type);
+  reg_list.add(reg_ro_uavcan_pub_bumper_type);
+  reg_list.add(reg_ro_uavcan_sub_led1_type);
   /* Subscribe to the reception of Bit message. */
   node_hdl.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   /* Subscribe to incoming service requests */
