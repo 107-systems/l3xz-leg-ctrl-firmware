@@ -35,6 +35,10 @@
 
 #include "NodeInfo.h"
 
+#undef max
+#undef min
+#include <algorithm>
+
 /**************************************************************************************
  * DEFINES
  **************************************************************************************/
@@ -156,21 +160,21 @@ static uint16_t updateinterval_bumper=500;
 
 /* REGISTER ***************************************************************************/
 
-static RegisterNatural8  reg_rw_uavcan_node_id                 ("uavcan.node.id",                 Register::Access::ReadWrite, LEG_CONTROLLER_NODE_ID,              [&node_hdl](RegisterNatural8 const & reg) { node_hdl.setNodeId(reg.get()); });
-static RegisterString    reg_ro_uavcan_node_description        ("uavcan.node.description",        Register::Access::ReadWrite, "L3X-Z LEG_CONTROLLER",              nullptr);
-static RegisterNatural16 reg_ro_uavcan_pub_inputvoltage_id     ("uavcan.pub.inputvoltage.id",     Register::Access::ReadOnly,  ID_INPUT_VOLTAGE,                    nullptr);
-static RegisterString    reg_ro_uavcan_pub_inputvoltage_type   ("uavcan.pub.inputvoltage.type",   Register::Access::ReadOnly,  "uavcan.primitive.scalar.Real32.1.0",nullptr);
-static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id         ("uavcan.pub.AS5048_a.id",         Register::Access::ReadOnly,  ID_AS5048_A,                         nullptr);
-static RegisterString    reg_ro_uavcan_pub_AS5048_a_type       ("uavcan.pub.AS5048_a.type",       Register::Access::ReadOnly,  "uavcan.primitive.scalar.Real32.1.0",nullptr);
-static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id         ("uavcan.pub.AS5048_b.id",         Register::Access::ReadOnly,  ID_AS5048_B,                         nullptr);
-static RegisterString    reg_ro_uavcan_pub_AS5048_b_type       ("uavcan.pub.AS5048_b.type",       Register::Access::ReadOnly,  "uavcan.primitive.scalar.Real32.1.0",nullptr);
-static RegisterNatural16 reg_ro_uavcan_pub_bumper_id           ("uavcan.pub.bumper.id",           Register::Access::ReadOnly,  ID_BUMPER,                           nullptr);
-static RegisterString    reg_ro_uavcan_pub_bumper_type         ("uavcan.pub.bumper.type",         Register::Access::ReadOnly,  "uavcan.primitive.scalar.Bit.1.0",   nullptr);
-static RegisterNatural16 reg_ro_uavcan_sub_led1_id             ("uavcan.sub.led1.id",             Register::Access::ReadOnly,  ID_LED1,                             nullptr);
-static RegisterString    reg_ro_uavcan_sub_led1_type           ("uavcan.sub.led1.type",           Register::Access::ReadOnly,  "uavcan.primitive.scalar.Bit.1.0",   nullptr);
-static RegisterNatural16 reg_rw_aux_updateinterval_inputvoltage("aux.updateinterval.inputvoltage",Register::Access::ReadWrite, updateinterval_inputvoltage,         [&node_hdl](RegisterNatural16 const & reg) { updateinterval_inputvoltage=reg.get(); if(updateinterval_inputvoltage<100) updateinterval_inputvoltage=100; });
-static RegisterNatural16 reg_rw_aux_updateinterval_angle       ("aux.updateinterval.angle",       Register::Access::ReadWrite, updateinterval_angle,                [&node_hdl](RegisterNatural16 const & reg) { updateinterval_angle=reg.get(); if(updateinterval_angle<50) updateinterval_angle=50; });
-static RegisterNatural16 reg_rw_aux_updateinterval_bumper      ("aux.updateinterval.bumper",      Register::Access::ReadWrite, updateinterval_bumper,               [&node_hdl](RegisterNatural16 const & reg) { updateinterval_bumper=reg.get(); if(updateinterval_bumper<100) updateinterval_bumper=100; });
+static RegisterNatural8  reg_rw_uavcan_node_id                 ("uavcan.node.id",                 Register::Access::ReadWrite, Register::Persistent::No, LEG_CONTROLLER_NODE_ID,              [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); }, nullptr, nullptr);
+static RegisterString    reg_ro_uavcan_node_description        ("uavcan.node.description",        Register::Access::ReadWrite, Register::Persistent::No, "L3X-Z LEG_CONTROLLER",              nullptr, nullptr, nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_inputvoltage_id     ("uavcan.pub.inputvoltage.id",     Register::Access::ReadOnly,  Register::Persistent::No, ID_INPUT_VOLTAGE,                    nullptr, nullptr, nullptr);
+static RegisterString    reg_ro_uavcan_pub_inputvoltage_type   ("uavcan.pub.inputvoltage.type",   Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0",nullptr, nullptr, nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id         ("uavcan.pub.AS5048_a.id",         Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_A,                         nullptr, nullptr, nullptr);
+static RegisterString    reg_ro_uavcan_pub_AS5048_a_type       ("uavcan.pub.AS5048_a.type",       Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0",nullptr, nullptr, nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id         ("uavcan.pub.AS5048_b.id",         Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_B,                         nullptr, nullptr, nullptr);
+static RegisterString    reg_ro_uavcan_pub_AS5048_b_type       ("uavcan.pub.AS5048_b.type",       Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0",nullptr, nullptr, nullptr);
+static RegisterNatural16 reg_ro_uavcan_pub_bumper_id           ("uavcan.pub.bumper.id",           Register::Access::ReadOnly,  Register::Persistent::No, ID_BUMPER,                           nullptr, nullptr, nullptr);
+static RegisterString    reg_ro_uavcan_pub_bumper_type         ("uavcan.pub.bumper.type",         Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0",   nullptr, nullptr, nullptr);
+static RegisterNatural16 reg_ro_uavcan_sub_led1_id             ("uavcan.sub.led1.id",             Register::Access::ReadOnly,  Register::Persistent::No, ID_LED1,                             nullptr, nullptr, nullptr);
+static RegisterString    reg_ro_uavcan_sub_led1_type           ("uavcan.sub.led1.type",           Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0",   nullptr, nullptr, nullptr);
+static RegisterNatural16 reg_rw_aux_updateinterval_inputvoltage("aux.updateinterval.inputvoltage",Register::Access::ReadWrite, Register::Persistent::No, updateinterval_inputvoltage,         nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
+static RegisterNatural16 reg_rw_aux_updateinterval_angle       ("aux.updateinterval.angle",       Register::Access::ReadWrite, Register::Persistent::No, updateinterval_angle,                nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(50)); });
+static RegisterNatural16 reg_rw_aux_updateinterval_bumper      ("aux.updateinterval.bumper",      Register::Access::ReadWrite, Register::Persistent::No, updateinterval_bumper,               nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
 static RegisterList      reg_list;
 
 Heartbeat_1_0<> hb;
