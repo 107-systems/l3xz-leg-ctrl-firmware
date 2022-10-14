@@ -41,11 +41,11 @@
  * DEFINES
  **************************************************************************************/
 
-#define LED1_PIN 2
-#define LED2_PIN A7
-#define LED3_PIN A6
-#define BUMPER 6
-#define ANALOG_PIN A1
+static int const LED1_PIN   = 2;
+static int const LED2_PIN   = A7;
+static int const LED3_PIN   = A6;
+static int const BUMPER     = 6;
+static int const ANALOG_PIN = A1;
 
 /**************************************************************************************
  * NAMESPACE
