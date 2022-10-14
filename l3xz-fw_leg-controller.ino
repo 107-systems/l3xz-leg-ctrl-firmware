@@ -38,16 +38,6 @@
 #include <algorithm>
 
 /**************************************************************************************
- * DEFINES
- **************************************************************************************/
-
-static int const LED1_PIN   = 2;
-static int const LED2_PIN   = A7;
-static int const LED3_PIN   = A6;
-static int const BUMPER     = 6;
-static int const ANALOG_PIN = A1;
-
-/**************************************************************************************
  * NAMESPACE
  **************************************************************************************/
 
@@ -58,10 +48,15 @@ using namespace uavcan::primitive::scalar;
  * CONSTANTS
  **************************************************************************************/
 
-static int          const MKRCAN_MCP2515_CS_PIN  = 3;
-static int          const MKRCAN_MCP2515_INT_PIN = 9;
-static int          const AS504x_A_CS_PIN        = 4;
-static int          const AS504x_B_CS_PIN        = 5;
+static int const MKRCAN_MCP2515_CS_PIN  = 3;
+static int const MKRCAN_MCP2515_INT_PIN = 9;
+static int const AS504x_A_CS_PIN        = 4;
+static int const AS504x_B_CS_PIN        = 5;
+static int const LED1_PIN               = 2;
+static int const LED2_PIN               = A7;
+static int const LED3_PIN               = A6;
+static int const BUMPER_PIN             = 6;
+static int const VBAT_PIN               = A1;
 
 static CanardNodeID const LEG_CONTROLLER_NODE_ID = 31;
 
@@ -208,7 +203,7 @@ void setup()
   digitalWrite(LED2_PIN, LOW);
   pinMode(LED3_PIN, OUTPUT);
   digitalWrite(LED3_PIN, LOW);
-  pinMode(BUMPER, INPUT_PULLUP);
+  pinMode(BUMPER_PIN, INPUT_PULLUP);
 
   /* Setup I2C Eeprom */
   ee.begin();
@@ -329,7 +324,7 @@ void loop()
   if((now - prev_bumper) > update_period_bumper_ms)
   {
     Bit_1_0<ID_BUMPER> uavcan_bumper;
-    uavcan_bumper.data.value = digitalRead(BUMPER);
+    uavcan_bumper.data.value = digitalRead(BUMPER_PIN);
     node_hdl.publish(uavcan_bumper);
 
     prev_bumper = now;
@@ -357,7 +352,7 @@ void loop()
   if((now - prev_battery_voltage) > update_period_vbat_ms)
   {
     Real32_1_0<ID_INPUT_VOLTAGE> uavcan_vbat;
-    uavcan_vbat.data.value = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
+    uavcan_vbat.data.value = analogRead(VBAT_PIN)*3.3*11.0/1023.0;
     node_hdl.publish(uavcan_vbat);
     DBG_INFO("TX vbat: %0.2f", uavcan_vbat.data.value);
 
