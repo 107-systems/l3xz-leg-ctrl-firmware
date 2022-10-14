@@ -218,6 +218,7 @@ void setup()
 
   /* create UAVCAN class */
   node_hdl.setNodeId(eeNodeID);
+  reg_rw_uavcan_node_id.set(eeNodeID);
 
   /* Setup SPI access */
   SPI.begin();
