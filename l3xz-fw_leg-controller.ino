@@ -147,27 +147,27 @@ ArduinoAS504x angle_B_pos_sensor([]()
 
 I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
-static uint16_t updateinterval_inputvoltage=3*1000;
-static uint16_t updateinterval_angle=50;
-static uint16_t updateinterval_bumper=500;
+static uint16_t update_period_vbat_ms   = 3000;
+static uint16_t update_period_angle_ms  =   50;
+static uint16_t update_period_bumper_ms =  500;
 
 /* REGISTER ***************************************************************************/
 
-static RegisterNatural8  reg_rw_uavcan_node_id                 ("uavcan.node.id",                 Register::Access::ReadWrite, Register::Persistent::No, LEG_CONTROLLER_NODE_ID, [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); });
-static RegisterString    reg_ro_uavcan_node_description        ("uavcan.node.description",        Register::Access::ReadWrite, Register::Persistent::No, "L3X-Z LEG_CONTROLLER");
-static RegisterNatural16 reg_ro_uavcan_pub_inputvoltage_id     ("uavcan.pub.inputvoltage.id",     Register::Access::ReadOnly,  Register::Persistent::No, ID_INPUT_VOLTAGE);
-static RegisterString    reg_ro_uavcan_pub_inputvoltage_type   ("uavcan.pub.inputvoltage.type",   Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
-static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id         ("uavcan.pub.AS5048_a.id",         Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_A);
-static RegisterString    reg_ro_uavcan_pub_AS5048_a_type       ("uavcan.pub.AS5048_a.type",       Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
-static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id         ("uavcan.pub.AS5048_b.id",         Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_B);
-static RegisterString    reg_ro_uavcan_pub_AS5048_b_type       ("uavcan.pub.AS5048_b.type",       Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
-static RegisterNatural16 reg_ro_uavcan_pub_bumper_id           ("uavcan.pub.bumper.id",           Register::Access::ReadOnly,  Register::Persistent::No, ID_BUMPER);
-static RegisterString    reg_ro_uavcan_pub_bumper_type         ("uavcan.pub.bumper.type",         Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
-static RegisterNatural16 reg_ro_uavcan_sub_led1_id             ("uavcan.sub.led1.id",             Register::Access::ReadOnly,  Register::Persistent::No, ID_LED1);
-static RegisterString    reg_ro_uavcan_sub_led1_type           ("uavcan.sub.led1.type",           Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
-static RegisterNatural16 reg_rw_aux_updateinterval_inputvoltage("aux.updateinterval.inputvoltage",Register::Access::ReadWrite, Register::Persistent::No, updateinterval_inputvoltage, nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
-static RegisterNatural16 reg_rw_aux_updateinterval_angle       ("aux.updateinterval.angle",       Register::Access::ReadWrite, Register::Persistent::No, updateinterval_angle,        nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(50)); });
-static RegisterNatural16 reg_rw_aux_updateinterval_bumper      ("aux.updateinterval.bumper",      Register::Access::ReadWrite, Register::Persistent::No, updateinterval_bumper,       nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
+static RegisterNatural8  reg_rw_uavcan_node_id             ("uavcan.node.id",              Register::Access::ReadWrite, Register::Persistent::No, LEG_CONTROLLER_NODE_ID, [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); });
+static RegisterString    reg_ro_uavcan_node_description    ("uavcan.node.description",     Register::Access::ReadWrite, Register::Persistent::No, "L3X-Z LEG_CONTROLLER");
+static RegisterNatural16 reg_ro_uavcan_pub_vbat_id         ("uavcan.pub.vbat.id",          Register::Access::ReadOnly,  Register::Persistent::No, ID_INPUT_VOLTAGE);
+static RegisterString    reg_ro_uavcan_pub_vbat_type       ("uavcan.pub.vbat.type",        Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id     ("uavcan.pub.AS5048_a.id",      Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_A);
+static RegisterString    reg_ro_uavcan_pub_AS5048_a_type   ("uavcan.pub.AS5048_a.type",    Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id     ("uavcan.pub.AS5048_b.id",      Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_B);
+static RegisterString    reg_ro_uavcan_pub_AS5048_b_type   ("uavcan.pub.AS5048_b.type",    Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
+static RegisterNatural16 reg_ro_uavcan_pub_bumper_id       ("uavcan.pub.bumper.id",        Register::Access::ReadOnly,  Register::Persistent::No, ID_BUMPER);
+static RegisterString    reg_ro_uavcan_pub_bumper_type     ("uavcan.pub.bumper.type",      Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
+static RegisterNatural16 reg_ro_uavcan_sub_led1_id         ("uavcan.sub.led1.id",          Register::Access::ReadOnly,  Register::Persistent::No, ID_LED1);
+static RegisterString    reg_ro_uavcan_sub_led1_type       ("uavcan.sub.led1.type",        Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
+static RegisterNatural16 reg_rw_aux_update_period_vbat_ms  ("aux.update_period_ms.vbat",   Register::Access::ReadWrite, Register::Persistent::No, update_period_vbat_ms, nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
+static RegisterNatural16 reg_rw_aux_update_period_angle_ms ("aux.update_period_ms.angle",  Register::Access::ReadWrite, Register::Persistent::No, update_period_angle_ms,        nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(50)); });
+static RegisterNatural16 reg_rw_aux_update_period_bumper_ms("aux.update_period_ms.bumper", Register::Access::ReadWrite, Register::Persistent::No, update_period_bumper_ms,       nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
 static RegisterList      reg_list;
 
 /* NODE INFO **************************************************************************/
@@ -257,19 +257,19 @@ void setup()
 
   reg_list.add(reg_rw_uavcan_node_id);
   reg_list.add(reg_ro_uavcan_node_description);
-  reg_list.add(reg_ro_uavcan_pub_inputvoltage_id);
+  reg_list.add(reg_ro_uavcan_pub_vbat_id);
   reg_list.add(reg_ro_uavcan_pub_AS5048_a_id);
   reg_list.add(reg_ro_uavcan_pub_AS5048_b_id);
   reg_list.add(reg_ro_uavcan_pub_bumper_id);
   reg_list.add(reg_ro_uavcan_sub_led1_id);
-  reg_list.add(reg_ro_uavcan_pub_inputvoltage_type);
+  reg_list.add(reg_ro_uavcan_pub_vbat_type);
   reg_list.add(reg_ro_uavcan_pub_AS5048_a_type);
   reg_list.add(reg_ro_uavcan_pub_AS5048_b_type);
   reg_list.add(reg_ro_uavcan_pub_bumper_type);
   reg_list.add(reg_ro_uavcan_sub_led1_type);
-  reg_list.add(reg_rw_aux_updateinterval_inputvoltage);
-  reg_list.add(reg_rw_aux_updateinterval_angle);
-  reg_list.add(reg_rw_aux_updateinterval_bumper);
+  reg_list.add(reg_rw_aux_update_period_vbat_ms);
+  reg_list.add(reg_rw_aux_update_period_angle_ms);
+  reg_list.add(reg_rw_aux_update_period_bumper_ms);
   reg_list.subscribe(node_hdl);
 
   /* Subscribe to the reception of Bit message. */
@@ -326,7 +326,7 @@ void loop()
      prev_heartbeat = now;
    }
 
-  if((now - prev_bumper) > updateinterval_bumper)
+  if((now - prev_bumper) > update_period_bumper_ms)
   {
     Bit_1_0<ID_BUMPER> uavcan_bumper;
     uavcan_bumper.data.value = digitalRead(BUMPER);
@@ -335,7 +335,7 @@ void loop()
     prev_bumper = now;
   }
 
-  if((now - prev_angle_sensor) > updateinterval_angle)
+  if((now - prev_angle_sensor) > update_period_angle_ms)
   {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
@@ -354,13 +354,12 @@ void loop()
     prev_angle_sensor = now;
   }
 
-  if((now - prev_battery_voltage) > updateinterval_inputvoltage)
+  if((now - prev_battery_voltage) > update_period_vbat_ms)
   {
-    float const analog = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
-    Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
-    uavcan_input_voltage.data.value = analog;
-    node_hdl.publish(uavcan_input_voltage);
-    DBG_INFO("TX vbat: %0.2f", analog);
+    Real32_1_0<ID_INPUT_VOLTAGE> uavcan_vbat;
+    uavcan_vbat.data.value = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
+    node_hdl.publish(uavcan_vbat);
+    DBG_INFO("TX vbat: %0.2f", uavcan_vbat.data.value);
 
     prev_battery_voltage = now;
   }
