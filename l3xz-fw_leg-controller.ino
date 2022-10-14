@@ -91,10 +91,6 @@ static float b_angle_offset_deg = 0.0f;
 
 void onReceiveBufferFull(CanardFrame const &);
 void onLed1_Received (CanardRxTransfer const &, Node &);
-
-/* Cyphal Service Requests */
-void onList_1_0_Request_Received(CanardRxTransfer const &, Node &);
-void onAccess_1_0_Request_Received(CanardRxTransfer const &, Node &);
 void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const &, Node &);
 
 /**************************************************************************************
