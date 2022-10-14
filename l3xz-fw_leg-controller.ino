@@ -33,8 +33,6 @@
 #define DBG_ENABLE_DEBUG
 #include <107-Arduino-Debug.hpp>
 
-#include "NodeInfo.h"
-
 #undef max
 #undef min
 #include <algorithm>
@@ -96,7 +94,6 @@ void onLed1_Received (CanardRxTransfer const &, Node &);
 
 /* Cyphal Service Requests */
 void onList_1_0_Request_Received(CanardRxTransfer const &, Node &);
-void onGetInfo_1_0_Request_Received(CanardRxTransfer const &, Node &);
 void onAccess_1_0_Request_Received(CanardRxTransfer const &, Node &);
 void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const &, Node &);
 
@@ -177,6 +174,24 @@ static RegisterNatural16 reg_rw_aux_updateinterval_angle       ("aux.updateinter
 static RegisterNatural16 reg_rw_aux_updateinterval_bumper      ("aux.updateinterval.bumper",      Register::Access::ReadWrite, Register::Persistent::No, updateinterval_bumper,       nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
 static RegisterList      reg_list;
 
+/* NODE INFO **************************************************************************/
+
+static NodeInfo node_info
+(
+  /* uavcan.node.Version.1.0 protocol_version */
+  1, 0,
+  /* uavcan.node.Version.1.0 hardware_version */
+  1, 0,
+  /* uavcan.node.Version.1.0 software_version */
+  0, 1,
+  /* saturated uint64 software_vcs_revision_id */
+  NULL,
+  /* saturated uint8[16] unique_id */
+  OpenCyphalUniqueId(),
+  /* saturated uint8[<=50] name */
+  "107-systems.l3xz-fw_leg-controller"
+);
+
 Heartbeat_1_0<> hb;
 
 /**************************************************************************************
@@ -240,9 +255,10 @@ void setup()
   hb = Heartbeat_1_0<>::Mode::INITIALIZATION;
   hb.data.vendor_specific_status_code = 0;
 
-  /* Subscribe to the GetInfo request */
-  node_hdl.subscribe<GetInfo_1_0::Request<>>(onGetInfo_1_0_Request_Received);
-  reg_list.subscribe(node_hdl);
+  /* Register callbacks for node info and register api.
+   */
+  node_info.subscribe(node_hdl);
+
   reg_list.add(reg_rw_uavcan_node_id);
   reg_list.add(reg_ro_uavcan_node_description);
   reg_list.add(reg_ro_uavcan_pub_inputvoltage_id);
@@ -258,6 +274,8 @@ void setup()
   reg_list.add(reg_rw_aux_updateinterval_inputvoltage);
   reg_list.add(reg_rw_aux_updateinterval_angle);
   reg_list.add(reg_rw_aux_updateinterval_bumper);
+  reg_list.subscribe(node_hdl);
+
   /* Subscribe to the reception of Bit message. */
   node_hdl.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   /* Subscribe to incoming service requests */
@@ -374,15 +392,6 @@ void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
     digitalWrite(LED1_PIN, HIGH);
   else
     digitalWrite(LED1_PIN, LOW);
-}
-
-void onGetInfo_1_0_Request_Received(CanardRxTransfer const &transfer, Node & node_hdl)
-{
-  DBG_INFO("onGetInfo_1_0_Request_Received");
-
-  GetInfo_1_0::Response<> rsp = GetInfo_1_0::Response<>();
-  memcpy(&rsp.data, &NODE_INFO, sizeof(uavcan_node_GetInfo_Response_1_0));
-  node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
 }
 
 void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const & transfer, Node & node_hdl)
