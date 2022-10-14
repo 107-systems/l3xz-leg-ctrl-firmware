@@ -58,7 +58,7 @@ static int const LED3_PIN               = A6;
 static int const BUMPER_PIN             = 6;
 static int const VBAT_PIN               = A1;
 
-static CanardNodeID const LEG_CONTROLLER_NODE_ID = 31;
+static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
 
 static CanardPortID const ID_INPUT_VOLTAGE       = 1001U;
 static CanardPortID const ID_AS5048_A            = 1002U;
@@ -148,7 +148,7 @@ static uint16_t update_period_bumper_ms =  500;
 
 /* REGISTER ***************************************************************************/
 
-static RegisterNatural8  reg_rw_uavcan_node_id             ("uavcan.node.id",              Register::Access::ReadWrite, Register::Persistent::No, LEG_CONTROLLER_NODE_ID, [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); });
+static RegisterNatural8  reg_rw_uavcan_node_id             ("uavcan.node.id",              Register::Access::ReadWrite, Register::Persistent::No, DEFAULT_LEG_CONTROLLER_NODE_ID, [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); });
 static RegisterString    reg_ro_uavcan_node_description    ("uavcan.node.description",     Register::Access::ReadWrite, Register::Persistent::No, "L3X-Z LEG_CONTROLLER");
 static RegisterNatural16 reg_ro_uavcan_pub_vbat_id         ("uavcan.pub.vbat.id",          Register::Access::ReadOnly,  Register::Persistent::No, ID_INPUT_VOLTAGE);
 static RegisterString    reg_ro_uavcan_pub_vbat_type       ("uavcan.pub.vbat.type",        Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
