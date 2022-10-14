@@ -33,20 +33,9 @@
 #define DBG_ENABLE_DEBUG
 #include <107-Arduino-Debug.hpp>
 
-/**************************************************************************************
- * DEFINES
- **************************************************************************************/
-
-#define LED1_PIN 2
-#define LED2_PIN A7
-#define LED3_PIN A6
-#define BUMPER 6
-#define ANALOG_PIN A1
-
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_0  *(volatile uint32_t*)(0x0080A00C)
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_1  *(volatile uint32_t*)(0x0080A040)
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_2  *(volatile uint32_t*)(0x0080A044)
-#define ATSAMD21G18_SERIAL_NUMBER_WORD_3  *(volatile uint32_t*)(0x0080A048)
+#undef max
+#undef min
+#include <algorithm>
 
 /**************************************************************************************
  * NAMESPACE
@@ -56,36 +45,20 @@ using namespace uavcan::node;
 using namespace uavcan::primitive::scalar;
 
 /**************************************************************************************
- * TYPEDEF
- **************************************************************************************/
-
-union UniqueId
-{
-  struct __attribute__((packed))
-  {
-    uint32_t w0, w1, w2, w3;
-  } word_buf;
-  uint8_t byte_buf[16];
-};
-
-/**************************************************************************************
  * CONSTANTS
  **************************************************************************************/
 
-UniqueId const UNIQUE_ID = []()
-{
-  UniqueId uid;
-  uid.word_buf.w0 = ATSAMD21G18_SERIAL_NUMBER_WORD_0;
-  uid.word_buf.w1 = ATSAMD21G18_SERIAL_NUMBER_WORD_1;
-  uid.word_buf.w2 = ATSAMD21G18_SERIAL_NUMBER_WORD_2;
-  uid.word_buf.w3 = ATSAMD21G18_SERIAL_NUMBER_WORD_3;
-  return uid;
-} ();
+static int const MKRCAN_MCP2515_CS_PIN  = 3;
+static int const MKRCAN_MCP2515_INT_PIN = 9;
+static int const AS504x_A_CS_PIN        = 4;
+static int const AS504x_B_CS_PIN        = 5;
+static int const LED1_PIN               = 2;
+static int const LED2_PIN               = A7;
+static int const LED3_PIN               = A6;
+static int const BUMPER_PIN             = 6;
+static int const VBAT_PIN               = A1;
 
-static int          const MKRCAN_MCP2515_CS_PIN  = 3;
-static int          const MKRCAN_MCP2515_INT_PIN = 9;
-static int          const AS504x_A_CS_PIN        = 4;
-static int          const AS504x_B_CS_PIN        = 5;
+static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
 
 static CanardPortID const ID_INPUT_VOLTAGE       = 1001U;
 static CanardPortID const ID_AS5048_A            = 1002U;
@@ -95,28 +68,6 @@ static CanardPortID const ID_LED1                = 1005U;
 
 static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
 static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
-
-static const uavcan_node_GetInfo_Response_1_0 NODE_INFO = {
-    /// uavcan.node.Version.1.0 protocol_version
-    {1, 0},
-    /// uavcan.node.Version.1.0 hardware_version
-    {1, 0},
-    /// uavcan.node.Version.1.0 software_version
-    {0, 1},
-    /// saturated uint64 software_vcs_revision_id
-    NULL,
-    /// saturated uint8[16] unique_id
-    {
-      UNIQUE_ID.byte_buf[ 0], UNIQUE_ID.byte_buf[ 1], UNIQUE_ID.byte_buf[ 2], UNIQUE_ID.byte_buf[ 3],
-      UNIQUE_ID.byte_buf[ 4], UNIQUE_ID.byte_buf[ 5], UNIQUE_ID.byte_buf[ 6], UNIQUE_ID.byte_buf[ 7],
-      UNIQUE_ID.byte_buf[ 8], UNIQUE_ID.byte_buf[ 9], UNIQUE_ID.byte_buf[10], UNIQUE_ID.byte_buf[11],
-      UNIQUE_ID.byte_buf[12], UNIQUE_ID.byte_buf[13], UNIQUE_ID.byte_buf[14], UNIQUE_ID.byte_buf[15]
-    },
-    /// saturated uint8[<=50] name
-    {
-        "107-systems.l3xz-fw_leg-controller",
-        strlen("107-systems.l3xz-fw_leg-controller")},
-};
 
 /**************************************************************************************
  * VARIABLES
@@ -135,7 +86,6 @@ static float b_angle_offset_deg = 0.0f;
 
 void onReceiveBufferFull(CanardFrame const &);
 void onLed1_Received (CanardRxTransfer const &, Node &);
-void onGetInfo_1_0_Request_Received(CanardRxTransfer const &, Node &);
 void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const &, Node &);
 
 /**************************************************************************************
@@ -192,6 +142,47 @@ ArduinoAS504x angle_B_pos_sensor([]()
 
 I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
+static uint16_t update_period_vbat_ms   = 3000;
+static uint16_t update_period_angle_ms  =   50;
+static uint16_t update_period_bumper_ms =  500;
+
+/* REGISTER ***************************************************************************/
+
+static RegisterNatural8  reg_rw_uavcan_node_id             ("uavcan.node.id",              Register::Access::ReadWrite, Register::Persistent::No, DEFAULT_LEG_CONTROLLER_NODE_ID, [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); });
+static RegisterString    reg_ro_uavcan_node_description    ("uavcan.node.description",     Register::Access::ReadWrite, Register::Persistent::No, "L3X-Z LEG_CONTROLLER");
+static RegisterNatural16 reg_ro_uavcan_pub_vbat_id         ("uavcan.pub.vbat.id",          Register::Access::ReadOnly,  Register::Persistent::No, ID_INPUT_VOLTAGE);
+static RegisterString    reg_ro_uavcan_pub_vbat_type       ("uavcan.pub.vbat.type",        Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id     ("uavcan.pub.AS5048_a.id",      Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_A);
+static RegisterString    reg_ro_uavcan_pub_AS5048_a_type   ("uavcan.pub.AS5048_a.type",    Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
+static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id     ("uavcan.pub.AS5048_b.id",      Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_B);
+static RegisterString    reg_ro_uavcan_pub_AS5048_b_type   ("uavcan.pub.AS5048_b.type",    Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
+static RegisterNatural16 reg_ro_uavcan_pub_bumper_id       ("uavcan.pub.bumper.id",        Register::Access::ReadOnly,  Register::Persistent::No, ID_BUMPER);
+static RegisterString    reg_ro_uavcan_pub_bumper_type     ("uavcan.pub.bumper.type",      Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
+static RegisterNatural16 reg_ro_uavcan_sub_led1_id         ("uavcan.sub.led1.id",          Register::Access::ReadOnly,  Register::Persistent::No, ID_LED1);
+static RegisterString    reg_ro_uavcan_sub_led1_type       ("uavcan.sub.led1.type",        Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
+static RegisterNatural16 reg_rw_aux_update_period_vbat_ms  ("aux.update_period_ms.vbat",   Register::Access::ReadWrite, Register::Persistent::No, update_period_vbat_ms, nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
+static RegisterNatural16 reg_rw_aux_update_period_angle_ms ("aux.update_period_ms.angle",  Register::Access::ReadWrite, Register::Persistent::No, update_period_angle_ms,        nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(50)); });
+static RegisterNatural16 reg_rw_aux_update_period_bumper_ms("aux.update_period_ms.bumper", Register::Access::ReadWrite, Register::Persistent::No, update_period_bumper_ms,       nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
+static RegisterList      reg_list;
+
+/* NODE INFO **************************************************************************/
+
+static NodeInfo node_info
+(
+  /* uavcan.node.Version.1.0 protocol_version */
+  1, 0,
+  /* uavcan.node.Version.1.0 hardware_version */
+  1, 0,
+  /* uavcan.node.Version.1.0 software_version */
+  0, 1,
+  /* saturated uint64 software_vcs_revision_id */
+  NULL,
+  /* saturated uint8[16] unique_id */
+  OpenCyphalUniqueId(),
+  /* saturated uint8[<=50] name */
+  "107-systems.l3xz-fw_leg-controller"
+);
+
 Heartbeat_1_0<> hb;
 
 /**************************************************************************************
@@ -212,7 +203,7 @@ void setup()
   digitalWrite(LED2_PIN, LOW);
   pinMode(LED3_PIN, OUTPUT);
   digitalWrite(LED3_PIN, LOW);
-  pinMode(BUMPER, INPUT_PULLUP);
+  pinMode(BUMPER_PIN, INPUT_PULLUP);
 
   /* Setup I2C Eeprom */
   ee.begin();
@@ -227,6 +218,7 @@ void setup()
 
   /* create UAVCAN class */
   node_hdl.setNodeId(eeNodeID);
+  reg_rw_uavcan_node_id.set(eeNodeID);
 
   /* Setup SPI access */
   SPI.begin();
@@ -246,7 +238,7 @@ void setup()
 
   /* Initialize MCP2515 */
   mcp2515.begin();
-  mcp2515.setBitRate(CanBitRate::BR_1000kBPS_16MHZ);
+  mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
 
   /* Configure initial heartbeat */
@@ -255,8 +247,27 @@ void setup()
   hb = Heartbeat_1_0<>::Mode::INITIALIZATION;
   hb.data.vendor_specific_status_code = 0;
 
-  /* Subscribe to the GetInfo request */
-  node_hdl.subscribe<GetInfo_1_0::Request<>>(onGetInfo_1_0_Request_Received);
+  /* Register callbacks for node info and register api.
+   */
+  node_info.subscribe(node_hdl);
+
+  reg_list.add(reg_rw_uavcan_node_id);
+  reg_list.add(reg_ro_uavcan_node_description);
+  reg_list.add(reg_ro_uavcan_pub_vbat_id);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_a_id);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_b_id);
+  reg_list.add(reg_ro_uavcan_pub_bumper_id);
+  reg_list.add(reg_ro_uavcan_sub_led1_id);
+  reg_list.add(reg_ro_uavcan_pub_vbat_type);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_a_type);
+  reg_list.add(reg_ro_uavcan_pub_AS5048_b_type);
+  reg_list.add(reg_ro_uavcan_pub_bumper_type);
+  reg_list.add(reg_ro_uavcan_sub_led1_type);
+  reg_list.add(reg_rw_aux_update_period_vbat_ms);
+  reg_list.add(reg_rw_aux_update_period_angle_ms);
+  reg_list.add(reg_rw_aux_update_period_bumper_ms);
+  reg_list.subscribe(node_hdl);
+
   /* Subscribe to the reception of Bit message. */
   node_hdl.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
   /* Subscribe to incoming service requests */
@@ -270,6 +281,10 @@ void setup()
 
 void loop()
 {
+  /* Process all pending OpenCyphal actions.
+   */
+  node_hdl.spinSome();
+
   /* Publish all the gathered data, although at various
    * different intervals.
    */
@@ -307,16 +322,16 @@ void loop()
      prev_heartbeat = now;
    }
 
-  if((now - prev_bumper) > 100)
+  if((now - prev_bumper) > update_period_bumper_ms)
   {
     Bit_1_0<ID_BUMPER> uavcan_bumper;
-    uavcan_bumper.data.value = digitalRead(BUMPER);
+    uavcan_bumper.data.value = digitalRead(BUMPER_PIN);
     node_hdl.publish(uavcan_bumper);
 
     prev_bumper = now;
   }
 
-  if((now - prev_angle_sensor) > 50)
+  if((now - prev_angle_sensor) > update_period_angle_ms)
   {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
@@ -335,19 +350,15 @@ void loop()
     prev_angle_sensor = now;
   }
 
-  if((now - prev_battery_voltage) > (10*1000))
+  if((now - prev_battery_voltage) > update_period_vbat_ms)
   {
-    float const analog = analogRead(ANALOG_PIN)*3.3*11.0/1023.0;
-    Real32_1_0<ID_INPUT_VOLTAGE> uavcan_input_voltage;
-    uavcan_input_voltage.data.value = analog;
-    node_hdl.publish(uavcan_input_voltage);
-    DBG_INFO("TX vbat: %0.2f", analog);
+    Real32_1_0<ID_INPUT_VOLTAGE> uavcan_vbat;
+    uavcan_vbat.data.value = analogRead(VBAT_PIN)*3.3*11.0/1023.0;
+    node_hdl.publish(uavcan_vbat);
+    DBG_INFO("TX vbat: %0.2f", uavcan_vbat.data.value);
 
     prev_battery_voltage = now;
   }
-
-  /* Transmit all enqeued CAN frames */
-  while(node_hdl.transmitCanFrame()) { }
 
   /* Feed the watchdog to keep it from biting. */
   Watchdog.reset();
@@ -372,15 +383,6 @@ void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
     digitalWrite(LED1_PIN, HIGH);
   else
     digitalWrite(LED1_PIN, LOW);
-}
-
-void onGetInfo_1_0_Request_Received(CanardRxTransfer const &transfer, Node & node_hdl)
-{
-  DBG_INFO("onGetInfo_1_0_Request_Received");
-
-  GetInfo_1_0::Response<> rsp = GetInfo_1_0::Response<>();
-  memcpy(&rsp.data, &NODE_INFO, sizeof(uavcan_node_GetInfo_Response_1_0));
-  node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
 }
 
 void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const & transfer, Node & node_hdl)

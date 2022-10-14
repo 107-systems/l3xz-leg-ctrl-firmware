@@ -35,9 +35,8 @@ Some Subject-IDs are the same as with the leg controller. The host can different
 | 1003           | pub           | AS5048-B-angle    | Real32      |
 | 1004           | pub           | bumper            | Bit         |
 | 1005           | sub           | LED1              | Bit         |
-| 1010           | sub           | update_interval   | Integer16   |
 
 ## Related Repositories
 * [107-Arduino-MCP2515](https://github.com/107-systems/107-Arduino-MCP2515)
 * [107-Arduino-AS504x](https://github.com/107-systems/107-Arduino-AS504x)
-* [107-Arduino-UAVCAN](https://github.com/107-systems/107-Arduino-UAVCAN)
+* [107-Arduino-Cyphal](https://github.com/107-systems/107-Arduino-Cyphal)
