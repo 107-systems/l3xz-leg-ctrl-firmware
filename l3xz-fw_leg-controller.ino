@@ -24,6 +24,8 @@
 #include <107-Arduino-Cyphal.h>
 #include <107-Arduino-MCP2515.h>
 #include <107-Arduino-AS504x.h>
+#include <107-Arduino-UniqueId.h>
+#include <107-Arduino-CriticalSection.h>
 #include <I2C_eeprom.h>
 #include <Adafruit_SleepyDog.h>
 
@@ -85,8 +87,8 @@ static float b_angle_offset_deg = 0.0f;
  **************************************************************************************/
 
 void onReceiveBufferFull(CanardFrame const &);
-void onLed1_Received (CanardRxTransfer const &, Node &);
-void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const &, Node &);
+void onLed1_Received (Bit_1_0<ID_LED1> const & uavcan_led1);
+ExecuteCommand_1_1::Response<> onExecuteCommand_1_1_Request_Received(ExecuteCommand_1_1::Request<> const &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
@@ -109,8 +111,27 @@ ArduinoMCP2515 mcp2515([]()
                        onReceiveBufferFull,
                        nullptr);
 
-CyphalHeap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
-Node node_hdl(node_heap.data(), node_heap.size(), DEFAULT_LEG_CONTROLLER_NODE_ID);
+Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
+Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); }, DEFAULT_LEG_CONTROLLER_NODE_ID);
+
+Publisher<Heartbeat_1_0<>> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0<>>
+  (Heartbeat_1_0<>::PORT_ID, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<Real32_1_0<ID_INPUT_VOLTAGE>> input_voltage_pub = node_hdl.create_publisher<Real32_1_0<ID_INPUT_VOLTAGE>>
+  (ID_INPUT_VOLTAGE, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<Real32_1_0<ID_AS5048_A>> as5048a_pub = node_hdl.create_publisher<Real32_1_0<ID_AS5048_A>>
+  (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<Real32_1_0<ID_AS5048_B>> as5048b_pub = node_hdl.create_publisher<Real32_1_0<ID_AS5048_B>>
+  (ID_AS5048_B, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<Bit_1_0<ID_BUMPER>> bumper_pub = node_hdl.create_publisher<Bit_1_0<ID_BUMPER>>
+  (ID_BUMPER, 1*1000*1000UL /* = 1 sec in usecs. */);
+
+Subscription led_sub = node_hdl.create_subscription<Bit_1_0<ID_LED1>>(
+  Bit_1_0<ID_LED1>::PORT_ID, CANARD_DEFAULT_TRANSFER_ID_TIMEOUT_USEC, onLed1_Received);
+
+ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand_1_1::Request<>, ExecuteCommand_1_1::Response<>>(
+  ExecuteCommand_1_1::Request<>::PORT_ID,
+  2*1000*1000UL,
+  onExecuteCommand_1_1_Request_Received);
 
 ArduinoAS504x angle_A_pos_sensor([]()
                                  {
@@ -164,12 +185,13 @@ static RegisterString    reg_ro_uavcan_sub_led1_type       ("uavcan.sub.led1.typ
 static RegisterNatural16 reg_rw_aux_update_period_vbat_ms  ("aux.update_period_ms.vbat",   Register::Access::ReadWrite, Register::Persistent::No, update_period_vbat_ms, nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
 static RegisterNatural16 reg_rw_aux_update_period_angle_ms ("aux.update_period_ms.angle",  Register::Access::ReadWrite, Register::Persistent::No, update_period_angle_ms,        nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(50)); });
 static RegisterNatural16 reg_rw_aux_update_period_bumper_ms("aux.update_period_ms.bumper", Register::Access::ReadWrite, Register::Persistent::No, update_period_bumper_ms,       nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
-static RegisterList      reg_list;
+static RegisterList      reg_list(node_hdl);
 
 /* NODE INFO **************************************************************************/
 
 static NodeInfo node_info
 (
+  node_hdl,
   /* uavcan.node.Version.1.0 protocol_version */
   1, 0,
   /* uavcan.node.Version.1.0 hardware_version */
@@ -184,7 +206,7 @@ static NodeInfo node_info
   "107-systems.l3xz-fw_leg-controller"
 );
 
-Heartbeat_1_0<> hb;
+Heartbeat_1_0<> hb_msg;
 
 /**************************************************************************************
  * SETUP/LOOP
@@ -243,15 +265,13 @@ void setup()
   mcp2515.setNormalMode();
 
   /* Configure initial heartbeat */
-  hb.data.uptime = 0;
-  hb = Heartbeat_1_0<>::Health::NOMINAL;
-  hb = Heartbeat_1_0<>::Mode::INITIALIZATION;
-  hb.data.vendor_specific_status_code = 0;
+  hb_msg.data.uptime = 0;
+  hb_msg.data.health.value = uavcan_node_Health_1_0_NOMINAL;
+  hb_msg.data.mode.value = uavcan_node_Mode_1_0_INITIALIZATION;
+  hb_msg.data.vendor_specific_status_code = 0;
 
   /* Register callbacks for node info and register api.
    */
-  node_info.subscribe(node_hdl);
-
   reg_list.add(reg_rw_uavcan_node_id);
   reg_list.add(reg_ro_uavcan_node_description);
   reg_list.add(reg_ro_uavcan_pub_vbat_id);
@@ -267,12 +287,6 @@ void setup()
   reg_list.add(reg_rw_aux_update_period_vbat_ms);
   reg_list.add(reg_rw_aux_update_period_angle_ms);
   reg_list.add(reg_rw_aux_update_period_bumper_ms);
-  reg_list.subscribe(node_hdl);
-
-  /* Subscribe to the reception of Bit message. */
-  node_hdl.subscribe<Bit_1_0<ID_LED1>>(onLed1_Received);
-  /* Subscribe to incoming service requests */
-  node_hdl.subscribe<ExecuteCommand_1_0::Request<>>(onExecuteCommand_1_0_Request_Received);
 
   DBG_INFO("initialisation finished");
 
@@ -284,7 +298,10 @@ void loop()
 {
   /* Process all pending OpenCyphal actions.
    */
-  node_hdl.spinSome([](CanardFrame const & frame) -> bool { return mcp2515.transmit(frame); });
+  {
+    CriticalSection crit_sec;
+    node_hdl.spinSome();
+  }
 
   /* Publish all the gathered data, although at various
    * different intervals.
@@ -315,10 +332,10 @@ void loop()
 
   if((now - prev_heartbeat) > 1000)
   {
-     hb.data.uptime = millis() / 1000;
-     hb = Heartbeat_1_0<>::Mode::OPERATIONAL;
-     node_hdl.publish(hb);
-     DBG_INFO("TX Heartbeat (uptime: %d)", hb.data.uptime);
+     hb_msg.data.uptime = millis() / 1000;
+     hb_msg.data.mode.value = uavcan_node_Mode_1_0_OPERATIONAL;
+     heartbeat_pub->publish(hb_msg);
+     DBG_INFO("TX Heartbeat (uptime: %d)", hb_msg.data.uptime);
 
      prev_heartbeat = now;
    }
@@ -327,7 +344,7 @@ void loop()
   {
     Bit_1_0<ID_BUMPER> uavcan_bumper;
     uavcan_bumper.data.value = digitalRead(BUMPER_PIN);
-    node_hdl.publish(uavcan_bumper);
+    bumper_pub->publish(uavcan_bumper);
 
     prev_bumper = now;
   }
@@ -338,14 +355,14 @@ void loop()
     a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
     uavcan_as5048_a.data.value = a_angle_deg - a_angle_offset_deg;
-    node_hdl.publish(uavcan_as5048_a);
+    as5048a_pub->publish(uavcan_as5048_a);
     DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
 
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
     b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
     uavcan_as5048_b.data.value = b_angle_deg - b_angle_offset_deg;
-    node_hdl.publish(uavcan_as5048_b);
+    as5048b_pub->publish(uavcan_as5048_b);
     DBG_INFO("TX tibia angle: %0.f (offset: %0.2f)", b_angle_deg, b_angle_offset_deg);
 
     prev_angle_sensor = now;
@@ -355,7 +372,7 @@ void loop()
   {
     Real32_1_0<ID_INPUT_VOLTAGE> uavcan_vbat;
     uavcan_vbat.data.value = analogRead(VBAT_PIN)*3.3*11.0/1023.0;
-    node_hdl.publish(uavcan_vbat);
+    input_voltage_pub->publish(uavcan_vbat);
     DBG_INFO("TX vbat: %0.2f", uavcan_vbat.data.value);
 
     prev_battery_voltage = now;
@@ -371,13 +388,11 @@ void loop()
 
 void onReceiveBufferFull(CanardFrame const & frame)
 {
-  node_hdl.onCanFrameReceived(frame, micros());
+  node_hdl.onCanFrameReceived(frame);
 }
 
-void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
+void onLed1_Received(Bit_1_0<ID_LED1> const & uavcan_led1)
 {
-  Bit_1_0<ID_LED1> const uavcan_led1 = Bit_1_0<ID_LED1>::deserialize(transfer);
-
   DBG_INFO("onLed1_Received: %d", uavcan_led1.data.value);
 
   if(uavcan_led1.data.value)
@@ -386,11 +401,13 @@ void onLed1_Received(CanardRxTransfer const & transfer, Node & /* node */)
     digitalWrite(LED1_PIN, LOW);
 }
 
-void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const & transfer, Node & node_hdl)
+ExecuteCommand_1_1::Response<> onExecuteCommand_1_1_Request_Received(ExecuteCommand_1_1::Request<> const & req)
 {
-  ExecuteCommand_1_0::Request<> req = ExecuteCommand_1_0::Request<>::deserialize(transfer);
+  ExecuteCommand_1_1::Response<> rsp;
 
-  if (req.data.command == 0xCAFE && transfer.metadata.remote_node_id == node_hdl.getNodeId())
+  rsp.data.status = uavcan_node_ExecuteCommand_Response_1_1_STATUS_NOT_AUTHORIZED;
+
+  if (req.data.command == 0xCAFE)
   {
     /* Capture the angle offset. */
     a_angle_offset_deg = a_angle_deg;
@@ -398,9 +415,8 @@ void onExecuteCommand_1_0_Request_Received(CanardRxTransfer const & transfer, No
 
     DBG_INFO("onExecuteCommand_1_0_Request_Received:\n\toffset femur: %0.2f\n\toffset tibia: %0.2f", a_angle_offset_deg, b_angle_offset_deg);
 
-    /* Send the response. */
-    ExecuteCommand_1_0::Response<> rsp;
-    rsp = ExecuteCommand_1_0::Response<>::Status::SUCCESS;
-    node_hdl.respond(rsp, transfer.metadata.remote_node_id, transfer.metadata.transfer_id);
+    rsp.data.status = uavcan_node_ExecuteCommand_Response_1_1_STATUS_SUCCESS;
   }
+
+  return rsp;
 }
