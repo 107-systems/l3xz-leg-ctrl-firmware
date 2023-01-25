@@ -203,7 +203,7 @@ static NodeInfo node_info
   /* saturated uint8[16] unique_id */
   OpenCyphalUniqueId(),
   /* saturated uint8[<=50] name */
-  "107-systems.l3xz-fw_leg-controller"
+  "107-systems.l3xz-leg-ctrl"
 );
 
 Heartbeat_1_0<> hb_msg;
