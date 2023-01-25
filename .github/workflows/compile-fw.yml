@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - ".github/workflows/compile-fw.yml"
-      - "l3xz-fw_leg-controller.ino"
+      - "l3xz-leg-ctrl-firmware.ino"
       - "extra/**"
 
   push:
     paths:
       - ".github/workflows/compile-fw.yml"
-      - "l3xz-fw_leg-controller.ino"
+      - "l3xz-leg-ctrl-firmware.ino"
       - "extra/**"
 
 jobs:
@@ -44,6 +44,8 @@ jobs:
             - name: 107-Arduino-AS504x
             - name: 107-Arduino-MCP2515
             - name: 107-Arduino-Debug
+            - name: 107-Arduino-CriticalSection
+            - name: 107-Arduino-UniqueId
             - source-url: https://github.com/107-systems/107-Arduino-Cyphal.git
             - name: I2C_Eeprom
             - source-url: https://github.com/adafruit/Adafruit_SleepyDog.git
