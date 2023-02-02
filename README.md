@@ -14,6 +14,6 @@ Firmware for the [L3X-Z](https://github.com/107-systems/l3xz) leg [controller](h
 
 ### How-to-build/upload
 ```bash
-arduino-cli compile -b arduino:samd:nano_33_iot -v .
-arduino-cli upload -b arduino:samd:nano_33_iot -v . -p /dev/ttyACM0
+arduino-cli compile -b rp2040:rp2040:arduino_nano_connect -v .
+arduino-cli upload -b rp2040:rp2040:arduino_nano_connect -v .. -p /dev/ttyACM0
 ```

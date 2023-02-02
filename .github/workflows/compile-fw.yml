@@ -25,9 +25,10 @@ jobs:
 
       matrix:
         board:
-          - fqbn: arduino:samd:nano_33_iot
+          - fqbn: rp2040:rp2040:arduino_nano_connect
             platforms: |
-              - name: arduino:samd
+              - name: rp2040:rp2040
+                source-url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
 
     steps:
       - name: Checkout
@@ -48,7 +49,6 @@ jobs:
             - name: 107-Arduino-UniqueId
             - source-url: https://github.com/107-systems/107-Arduino-Cyphal.git
             - name: I2C_Eeprom
-            - source-url: https://github.com/adafruit/Adafruit_SleepyDog.git
 
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
           sketch-paths: ./
