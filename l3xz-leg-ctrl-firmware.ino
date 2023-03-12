@@ -83,8 +83,7 @@ static float b_angle_offset_deg = 0.0f;
  **************************************************************************************/
 
 void onReceiveBufferFull(CanardFrame const &);
-void onLed1_Received (Bit_1_0<ID_LED1> const & uavcan_led1);
-ExecuteCommand_1_1::Response<> onExecuteCommand_1_1_Request_Received(ExecuteCommand_1_1::Request<> const &);
+ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
@@ -110,22 +109,19 @@ ArduinoMCP2515 mcp2515([]()
 Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
 Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); }, DEFAULT_LEG_CONTROLLER_NODE_ID);
 
-Publisher<Heartbeat_1_0<>> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0<>>
-  (Heartbeat_1_0<>::PORT_ID, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Real32_1_0<ID_INPUT_VOLTAGE>> input_voltage_pub = node_hdl.create_publisher<Real32_1_0<ID_INPUT_VOLTAGE>>
+Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>
+  (Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<Real32_1_0> input_voltage_pub = node_hdl.create_publisher<Real32_1_0>
   (ID_INPUT_VOLTAGE, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Real32_1_0<ID_AS5048_A>> as5048a_pub = node_hdl.create_publisher<Real32_1_0<ID_AS5048_A>>
+Publisher<Real32_1_0> as5048a_pub = node_hdl.create_publisher<Real32_1_0>
   (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Real32_1_0<ID_AS5048_B>> as5048b_pub = node_hdl.create_publisher<Real32_1_0<ID_AS5048_B>>
+Publisher<Real32_1_0> as5048b_pub = node_hdl.create_publisher<Real32_1_0>
   (ID_AS5048_B, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Bit_1_0<ID_BUMPER>> bumper_pub = node_hdl.create_publisher<Bit_1_0<ID_BUMPER>>
+Publisher<Bit_1_0> bumper_pub = node_hdl.create_publisher<Bit_1_0>
   (ID_BUMPER, 1*1000*1000UL /* = 1 sec in usecs. */);
 
-Subscription led_sub = node_hdl.create_subscription<Bit_1_0<ID_LED1>>(
-  Bit_1_0<ID_LED1>::PORT_ID, CANARD_DEFAULT_TRANSFER_ID_TIMEOUT_USEC, onLed1_Received);
-
-ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand_1_1::Request<>, ExecuteCommand_1_1::Response<>>(
-  ExecuteCommand_1_1::Request<>::PORT_ID,
+ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(
+  ExecuteCommand::Request_1_1::_traits_::FixedPortId,
   2*1000*1000UL,
   onExecuteCommand_1_1_Request_Received);
 
@@ -160,25 +156,29 @@ ArduinoAS504x angle_B_pos_sensor([]()
 
 I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 
-static uint16_t update_period_vbat_ms   = 3000;
-static uint16_t update_period_angle_ms  =   50;
-static uint16_t update_period_bumper_ms =  500;
-
 /* REGISTER ***************************************************************************/
 
-static RegisterNatural8  reg_rw_uavcan_node_id             ("uavcan.node.id",              Register::Access::ReadWrite, Register::Persistent::No, DEFAULT_LEG_CONTROLLER_NODE_ID, [&node_hdl](uint8_t const reg_val) { node_hdl.setNodeId(reg_val); });
-static RegisterString    reg_ro_uavcan_node_description    ("uavcan.node.description",     Register::Access::ReadWrite, Register::Persistent::No, "L3X-Z LEG_CONTROLLER");
-static RegisterNatural16 reg_ro_uavcan_pub_AS5048_a_id     ("uavcan.pub.AS5048_a.id",      Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_A);
-static RegisterString    reg_ro_uavcan_pub_AS5048_a_type   ("uavcan.pub.AS5048_a.type",    Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
-static RegisterNatural16 reg_ro_uavcan_pub_AS5048_b_id     ("uavcan.pub.AS5048_b.id",      Register::Access::ReadOnly,  Register::Persistent::No, ID_AS5048_B);
-static RegisterString    reg_ro_uavcan_pub_AS5048_b_type   ("uavcan.pub.AS5048_b.type",    Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Real32.1.0");
-static RegisterNatural16 reg_ro_uavcan_pub_bumper_id       ("uavcan.pub.bumper.id",        Register::Access::ReadOnly,  Register::Persistent::No, ID_BUMPER);
-static RegisterString    reg_ro_uavcan_pub_bumper_type     ("uavcan.pub.bumper.type",      Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
-static RegisterNatural16 reg_ro_uavcan_sub_led1_id         ("uavcan.sub.led1.id",          Register::Access::ReadOnly,  Register::Persistent::No, ID_LED1);
-static RegisterString    reg_ro_uavcan_sub_led1_type       ("uavcan.sub.led1.type",        Register::Access::ReadOnly,  Register::Persistent::No, "uavcan.primitive.scalar.Bit.1.0");
-static RegisterNatural16 reg_rw_aux_update_period_angle_ms ("aux.update_period_ms.angle",  Register::Access::ReadWrite, Register::Persistent::No, update_period_angle_ms,        nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(50)); });
-static RegisterNatural16 reg_rw_aux_update_period_bumper_ms("aux.update_period_ms.bumper", Register::Access::ReadWrite, Register::Persistent::No, update_period_bumper_ms,       nullptr, nullptr, [](uint16_t const & val) { return std::min(val, static_cast<uint16_t>(100)); });
-static RegisterList      reg_list(node_hdl);
+static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
+static uint16_t update_period_vbat_ms = 3000;
+static uint16_t update_period_angle_ms = 50;
+static uint16_t update_period_bumper_ms = 500;
+
+#if __GNUC__ >= 11
+
+Registry reg(node_hdl, micros);
+
+const auto reg_rw_uavcan_node_id              = reg.expose("uavcan.node.id", node_id);
+const auto reg_ro_uavcan_node_description     = reg.route("uavcan.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
+const auto reg_ro_uavcan_pub_AS5048_a_id      = reg.route("uavcan.pub.AS5048_a.id", {true}, []() { return ID_AS5048_A; });
+const auto reg_ro_uavcan_pub_AS5048_a_type    = reg.route("uavcan.pub.AS5048_a.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_ro_uavcan_pub_AS5048_b_id      = reg.route("uavcan.pub.AS5048_b.id", {true}, []() { return ID_AS5048_B: });
+const auto reg_ro_uavcan_pub_AS5048_b_type    = reg.route("uavcan.pub.AS5048_b.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_ro_uavcan_pub_bumper_id        = reg.route("uavcan.pub.bumper.id", {true}, []() { return ID_BUMPER: });
+const auto reg_ro_uavcan_pub_bumper_type      = reg.route("uavcan.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
+const auto reg_rw_aux_update_period_angle_ms  = reg.expose("aux.update_period_ms.angle", update_period_angle_ms);
+const auto reg_rw_aux_update_period_bumper_ms = reg.expose("aux.update_period_ms.bumper", update_period_bumper_ms);
+
+#endif /* __GNUC__ >= 11 */
 
 /* NODE INFO **************************************************************************/
 
@@ -198,8 +198,6 @@ static NodeInfo node_info
   /* saturated uint8[<=50] name */
   "107-systems.l3xz-leg-ctrl"
 );
-
-Heartbeat_1_0<> hb_msg;
 
 /**************************************************************************************
  * SETUP/LOOP
@@ -228,7 +226,7 @@ void setup()
 
   /* create UAVCAN class */
   node_hdl.setNodeId(eeNodeID);
-  reg_rw_uavcan_node_id.set(eeNodeID);
+  node_id = eeNodeID;
 
   /* Setup SPI access */
   SPI.begin();
@@ -241,7 +239,6 @@ void setup()
   pinMode(AS504x_B_CS_PIN, OUTPUT);
   digitalWrite(AS504x_B_CS_PIN, LOW);
 
-
   /* Attach interrupt handler to register MCP2515 signaled by taking INT low */
   pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(MKRCAN_MCP2515_INT_PIN), []() { mcp2515.onExternalEventHandler(); }, FALLING);
@@ -250,27 +247,6 @@ void setup()
   mcp2515.begin();
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
-
-  /* Configure initial heartbeat */
-  hb_msg.data.uptime = 0;
-  hb_msg.data.health.value = uavcan_node_Health_1_0_NOMINAL;
-  hb_msg.data.mode.value = uavcan_node_Mode_1_0_INITIALIZATION;
-  hb_msg.data.vendor_specific_status_code = 0;
-
-  /* Register callbacks for node info and register api.
-   */
-  reg_list.add(reg_rw_uavcan_node_id);
-  reg_list.add(reg_ro_uavcan_node_description);
-  reg_list.add(reg_ro_uavcan_pub_AS5048_a_id);
-  reg_list.add(reg_ro_uavcan_pub_AS5048_b_id);
-  reg_list.add(reg_ro_uavcan_pub_bumper_id);
-  reg_list.add(reg_ro_uavcan_sub_led1_id);
-  reg_list.add(reg_ro_uavcan_pub_AS5048_a_type);
-  reg_list.add(reg_ro_uavcan_pub_AS5048_b_type);
-  reg_list.add(reg_ro_uavcan_pub_bumper_type);
-  reg_list.add(reg_ro_uavcan_sub_led1_type);
-  reg_list.add(reg_rw_aux_update_period_angle_ms);
-  reg_list.add(reg_rw_aux_update_period_bumper_ms);
 
   DBG_INFO("initialisation finished");
 }
@@ -297,18 +273,24 @@ void loop()
 
   if((now - prev_heartbeat) > 1000)
   {
-     hb_msg.data.uptime = millis() / 1000;
-     hb_msg.data.mode.value = uavcan_node_Mode_1_0_OPERATIONAL;
-     heartbeat_pub->publish(hb_msg);
-     DBG_INFO("TX Heartbeat (uptime: %d)", hb_msg.data.uptime);
+    Heartbeat_1_0 msg;
 
-     prev_heartbeat = now;
-   }
+    msg.uptime = millis() / 1000;
+    msg.health.value = uavcan::node::Health_1_0::NOMINAL;
+    msg.mode.value = uavcan::node::Mode_1_0::OPERATIONAL;
+    msg.vendor_specific_status_code = 0;
+
+    heartbeat_pub->publish(msg);
+
+    DBG_INFO("TX Heartbeat (uptime: %d)", msg.uptime);
+
+    prev_heartbeat = now;
+  }
 
   if((now - prev_bumper) > update_period_bumper_ms)
   {
-    Bit_1_0<ID_BUMPER> uavcan_bumper;
-    uavcan_bumper.data.value = digitalRead(BUMPER_PIN);
+    Bit_1_0 uavcan_bumper;
+    uavcan_bumper.value = digitalRead(BUMPER_PIN);
     bumper_pub->publish(uavcan_bumper);
 
     prev_bumper = now;
@@ -318,15 +300,15 @@ void loop()
   {
     float const a_angle_raw = angle_A_pos_sensor.angle_raw();
     a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
-    Real32_1_0<ID_AS5048_A> uavcan_as5048_a;
-    uavcan_as5048_a.data.value = a_angle_deg - a_angle_offset_deg;
+    Real32_1_0 uavcan_as5048_a;
+    uavcan_as5048_a.value = a_angle_deg - a_angle_offset_deg;
     as5048a_pub->publish(uavcan_as5048_a);
     DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
 
     float const b_angle_raw = angle_B_pos_sensor.angle_raw();
     b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
-    Real32_1_0<ID_AS5048_B> uavcan_as5048_b;
-    uavcan_as5048_b.data.value = b_angle_deg - b_angle_offset_deg;
+    Real32_1_0 uavcan_as5048_b;
+    uavcan_as5048_b.value = b_angle_deg - b_angle_offset_deg;
     as5048b_pub->publish(uavcan_as5048_b);
     DBG_INFO("TX tibia angle: %0.f (offset: %0.2f)", b_angle_deg, b_angle_offset_deg);
 
@@ -343,32 +325,24 @@ void onReceiveBufferFull(CanardFrame const & frame)
   node_hdl.onCanFrameReceived(frame);
 }
 
-void onLed1_Received(Bit_1_0<ID_LED1> const & uavcan_led1)
+ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const & req)
 {
-  DBG_INFO("onLed1_Received: %d", uavcan_led1.data.value);
+  ExecuteCommand::Response_1_1 rsp;
 
-  if(uavcan_led1.data.value)
-    digitalWrite(LED1_PIN, HIGH);
-  else
-    digitalWrite(LED1_PIN, LOW);
-}
-
-ExecuteCommand_1_1::Response<> onExecuteCommand_1_1_Request_Received(ExecuteCommand_1_1::Request<> const & req)
-{
-  ExecuteCommand_1_1::Response<> rsp;
-
-  rsp.data.status = uavcan_node_ExecuteCommand_Response_1_1_STATUS_NOT_AUTHORIZED;
-
-  if (req.data.command == 0xCAFE)
+  if (req.command == 0xCAFE)
   {
     /* Capture the angle offset. */
     a_angle_offset_deg = a_angle_deg;
     b_angle_offset_deg = b_angle_deg;
 
-    DBG_INFO("onExecuteCommand_1_0_Request_Received:\n\toffset femur: %0.2f\n\toffset tibia: %0.2f", a_angle_offset_deg, b_angle_offset_deg);
+    DBG_INFO("onExecuteCommand_1_1_Request_Received:\n\toffset femur: %0.2f\n\toffset tibia: %0.2f",
+             a_angle_offset_deg,
+             b_angle_offset_deg);
 
-    rsp.data.status = uavcan_node_ExecuteCommand_Response_1_1_STATUS_SUCCESS;
+    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
+  else
+    rsp.status = ExecuteCommand::Response_1_1::STATUS_NOT_AUTHORIZED;
 
   return rsp;
 }
