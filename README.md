@@ -17,3 +17,8 @@ Firmware for the [L3X-Z](https://github.com/107-systems/l3xz) leg [controller](h
 arduino-cli compile -b rp2040:rp2040:arduino_nano_connect -v .
 arduino-cli upload -b rp2040:rp2040:arduino_nano_connect -v .. -p /dev/ttyACM0
 ```
+**or**
+```bash
+arduino-cli compile -b rp2040:rp2040:rpipico -v . --build-property compiler.cpp.extra_flags="-DCYPHAL_NODE_INFO_GIT_VERSION=0x$(git describe --always)"
+```
+Adding argument `--build-property compiler.cpp.extra_flags="-DCYPHAL_NODE_INFO_GIT_VERSION=0x$(git describe --always)"` allows to feed the Git hash of the current software version to [107-Arduino-Cyphal](https://github.com/107-systems/107-Arduino-Cyphal) stack from where it can be retrieved via i.e. [yakut](https://github.com/opencyphal/yakut).
