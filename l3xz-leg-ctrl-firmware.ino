@@ -266,6 +266,8 @@ void loop()
 
   if((now - prev_heartbeat) > 1000)
   {
+    digitalWrite(LED1_PIN, !digitalRead(LED1_PIN));
+
     Heartbeat_1_0 msg;
 
     msg.uptime = millis() / 1000;
