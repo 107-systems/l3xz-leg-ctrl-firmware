@@ -59,7 +59,7 @@ static CanardPortID const ID_AS5048_B = 1002U;
 static CanardPortID const ID_BUMPER   = 1003U;
 
 static SPISettings  const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
-static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
+static SPISettings  const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
 
 /**************************************************************************************
  * VARIABLES
