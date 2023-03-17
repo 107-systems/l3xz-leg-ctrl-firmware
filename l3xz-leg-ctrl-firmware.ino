@@ -25,7 +25,6 @@
 #include <107-Arduino-MCP2515.h>
 #include <107-Arduino-AS504x.h>
 #include <107-Arduino-UniqueId.h>
-#include <107-Arduino-CriticalSection.h>
 #include <I2C_eeprom.h>
 
 #define DBG_ENABLE_ERROR
@@ -213,11 +212,8 @@ void setup()
   pinMode(AS504x_B_CS_PIN, OUTPUT);
   digitalWrite(AS504x_B_CS_PIN, HIGH);
 
-  /* Attach interrupt handler to register MCP2515 signaled by taking INT low */
-  pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(MKRCAN_MCP2515_INT_PIN), []() { mcp2515.onExternalEventHandler(); }, FALLING);
-
   /* Initialize MCP2515 */
+  pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
   mcp2515.begin();
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
@@ -227,12 +223,15 @@ void setup()
 
 void loop()
 {
-  /* Process all pending OpenCyphal actions.
+  /* Deal with all pending events of the MCP2515 -
+   * signaled by the INT pin being driven LOW.
    */
-  {
-    CriticalSection crit_sec;
-    node_hdl.spinSome();
-  }
+  while (digitalRead(MKRCAN_MCP2515_INT_PIN) == LOW)
+    mcp2515.onExternalEventHandler();
+
+  /* Process all pending Cyphal actions.
+   */
+  node_hdl.spinSome();
 
   /* Publish all the gathered data, although at various
    * different intervals.
@@ -280,7 +279,7 @@ void loop()
     Real32_1_0 uavcan_as5048_a;
     uavcan_as5048_a.value = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
     as5048a_pub->publish(uavcan_as5048_a);
-    DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
+    DBG_INFO("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
 
     {
       float const b_angle_raw = angle_B_pos_sensor.angle_raw();
@@ -289,7 +288,7 @@ void loop()
     Real32_1_0 uavcan_as5048_b;
     uavcan_as5048_b.value = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
     as5048b_pub->publish(uavcan_as5048_b);
-    DBG_INFO("TX tibia angle: %0.f (offset: %0.2f)", b_angle_deg, b_angle_offset_deg);
+    DBG_INFO("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
 
     prev_angle_sensor = now;
   }
@@ -314,7 +313,7 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
     a_angle_offset_deg = a_angle_deg;
     b_angle_offset_deg = b_angle_deg;
 
-    DBG_INFO("onExecuteCommand_1_1_Request_Received:\n\toffset femur: %0.2f\n\toffset tibia: %0.2f",
+    DBG_INFO("onExecuteCommand_1_1_Request_Received:\n\toffset femur: %0.1f\n\toffset tibia: %0.1f",
              a_angle_offset_deg,
              b_angle_offset_deg);
 
