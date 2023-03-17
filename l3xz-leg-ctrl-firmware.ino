@@ -153,29 +153,6 @@ const auto reg_rw_aux_update_period_bumper_ms = node_registry.expose("aux.update
 
 #endif /* __GNUC__ >= 11 */
 
-/* NODE INFO **************************************************************************/
-
-static NodeInfo node_info
-(
-  node_hdl,
-  /* uavcan.node.Version.1.0 protocol_version */
-  1, 0,
-  /* uavcan.node.Version.1.0 hardware_version */
-  1, 0,
-  /* uavcan.node.Version.1.0 software_version */
-  0, 1,
-  /* saturated uint64 software_vcs_revision_id */
-#ifdef CYPHAL_NODE_INFO_GIT_VERSION
-  CYPHAL_NODE_INFO_GIT_VERSION,
-#else
-  0,
-#endif
-  /* saturated uint8[16] unique_id */
-  OpenCyphalUniqueId(),
-  /* saturated uint8[<=50] name */
-  "107-systems.l3xz-leg-ctrl"
-);
-
 /**************************************************************************************
  * SETUP/LOOP
  **************************************************************************************/
@@ -204,6 +181,26 @@ void setup()
   /* create UAVCAN class */
   node_hdl.setNodeId(eeNodeID);
   node_id = eeNodeID;
+
+  /* NODE INFO ************************************************************************/
+  static auto node_info = node_hdl.create_node_info
+  (
+    /* uavcan.node.Version.1.0 protocol_version */
+    1, 0,
+    /* uavcan.node.Version.1.0 hardware_version */
+    1, 0,
+    /* uavcan.node.Version.1.0 software_version */
+    0, 1,
+    /* saturated uint64 software_vcs_revision_id */
+#ifdef CYPHAL_NODE_INFO_GIT_VERSION
+    CYPHAL_NODE_INFO_GIT_VERSION,
+#else
+    0,
+#endif
+    /* saturated uint8[16] unique_id */
+    OpenCyphalUniqueId(),
+    /* saturated uint8[<=50] name */
+    "107-systems.l3xz-leg-ctrl");
 
   /* Setup SPI access */
   SPI.begin();
