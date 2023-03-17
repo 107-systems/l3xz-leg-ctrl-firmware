@@ -91,7 +91,6 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 
 ArduinoMCP2515 mcp2515([]()
                        {
-                         noInterrupts();
                          SPI.beginTransaction(MCP2515x_SPI_SETTING);
                          digitalWrite(MKRCAN_MCP2515_CS_PIN, LOW);
                        },
@@ -99,7 +98,6 @@ ArduinoMCP2515 mcp2515([]()
                        {
                          digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
                          SPI.endTransaction();
-                         interrupts();
                        },
                        [](uint8_t const d) { return SPI.transfer(d); },
                        micros,
@@ -127,13 +125,11 @@ ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteComman
 
 ArduinoAS504x angle_A_pos_sensor([]()
                                  {
-                                   noInterrupts();
                                    SPI.beginTransaction(AS504x_SPI_SETTING);
                                  },
                                  []()
                                  {
-                                  SPI.endTransaction();
-                                  interrupts();
+                                   SPI.endTransaction();
                                  },
                                  [](){ digitalWrite(AS504x_A_CS_PIN, LOW); },
                                  [](){ digitalWrite(AS504x_A_CS_PIN, HIGH); },
@@ -141,13 +137,11 @@ ArduinoAS504x angle_A_pos_sensor([]()
                                  delayMicroseconds);
 ArduinoAS504x angle_B_pos_sensor([]()
                                  {
-                                   noInterrupts();
                                    SPI.beginTransaction(AS504x_SPI_SETTING);
                                  },
                                  []()
                                  {
-                                  SPI.endTransaction();
-                                  interrupts();
+                                   SPI.endTransaction();
                                  },
                                  [](){ digitalWrite(AS504x_B_CS_PIN, LOW); },
                                  [](){ digitalWrite(AS504x_B_CS_PIN, HIGH); },
@@ -302,15 +296,21 @@ void loop()
 
   if((now - prev_angle_sensor) > update_period_angle_ms)
   {
-    float const a_angle_raw = angle_A_pos_sensor.angle_raw();
-    a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
+    {
+      CriticalSection crit_sec;
+      float const a_angle_raw = angle_A_pos_sensor.angle_raw();
+      a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
+    }
     Real32_1_0 uavcan_as5048_a;
     uavcan_as5048_a.value = a_angle_deg - a_angle_offset_deg;
     as5048a_pub->publish(uavcan_as5048_a);
     DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
 
-    float const b_angle_raw = angle_B_pos_sensor.angle_raw();
-    b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
+    {
+      CriticalSection crit_sec;
+      float const b_angle_raw = angle_B_pos_sensor.angle_raw();
+      b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
+    }
     Real32_1_0 uavcan_as5048_b;
     uavcan_as5048_b.value = b_angle_deg - b_angle_offset_deg;
     as5048b_pub->publish(uavcan_as5048_b);
