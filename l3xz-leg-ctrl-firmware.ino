@@ -39,6 +39,7 @@
 
 using namespace uavcan::node;
 using namespace uavcan::primitive::scalar;
+using namespace uavcan::si::unit;
 
 /**************************************************************************************
  * CONSTANTS
@@ -102,9 +103,9 @@ Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const 
 
 Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>
   (Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Real32_1_0> as5048a_pub = node_hdl.create_publisher<Real32_1_0>
+Publisher<angle::Scalar_1_0> as5048a_pub = node_hdl.create_publisher<angle::Scalar_1_0>
   (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Real32_1_0> as5048b_pub = node_hdl.create_publisher<Real32_1_0>
+Publisher<angle::Scalar_1_0> as5048b_pub = node_hdl.create_publisher<angle::Scalar_1_0>
   (ID_AS5048_B, 1*1000*1000UL /* = 1 sec in usecs. */);
 Publisher<Bit_1_0> bumper_pub = node_hdl.create_publisher<Bit_1_0>
   (ID_BUMPER, 1*1000*1000UL /* = 1 sec in usecs. */);
@@ -276,8 +277,8 @@ void loop()
       float const a_angle_raw = angle_A_pos_sensor.angle_raw();
       a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
-    Real32_1_0 uavcan_as5048_a;
-    uavcan_as5048_a.value = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
+    angle::Scalar_1_0 uavcan_as5048_a;
+    uavcan_as5048_a.radian = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
     as5048a_pub->publish(uavcan_as5048_a);
     DBG_INFO("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
 
@@ -285,8 +286,8 @@ void loop()
       float const b_angle_raw = angle_B_pos_sensor.angle_raw();
       b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
-    Real32_1_0 uavcan_as5048_b;
-    uavcan_as5048_b.value = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
+    angle::Scalar_1_0 uavcan_as5048_b;
+    uavcan_as5048_b.radian = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
     as5048b_pub->publish(uavcan_as5048_b);
     DBG_INFO("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
 

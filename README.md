@@ -34,3 +34,18 @@ python3 -m pip install yakut
 yakut compile https://github.com/OpenCyphal/public_regulated_data_types/archive/refs/heads/master.zip
 . setup_yakut.sh
 ```
+Subscribe via `yakut`:
+```bash
+yakut sub 1001:uavcan.si.unit.angle.Scalar.1.0 --with-metadata
+...
+---
+1001:
+  _meta_: {ts_system: 1679050084.745943, ts_monotonic: 91027.725109, source_node_id: 6, transfer_id: 18, priority: nominal, dtype: uavcan.si.unit.angle.Scalar.1.0}
+  radian: 3.814626693725586
+---
+1001:
+  _meta_: {ts_system: 1679050084.797002, ts_monotonic: 91027.773986, source_node_id: 6, transfer_id: 19, priority: nominal, dtype: uavcan.si.unit.angle.Scalar.1.0}
+  radian: 3.814626693725586
+---
+...
+```
