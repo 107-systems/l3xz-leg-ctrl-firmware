@@ -157,13 +157,13 @@ static uint16_t update_period_bumper_ms = 500;
 Registry node_registry(node_hdl, micros);
 
 const auto reg_rw_uavcan_node_id              = node_registry.expose("uavcan.node.id", {}, node_id);
-const auto reg_ro_uavcan_node_description     = node_registry.route("uavcan.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
-const auto reg_ro_uavcan_pub_AS5048_a_id      = node_registry.route("uavcan.pub.AS5048_a.id", {true}, []() { return ID_AS5048_A; });
-const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry.route("uavcan.pub.AS5048_a.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_ro_uavcan_pub_AS5048_b_id      = node_registry.route("uavcan.pub.AS5048_b.id", {true}, []() { return ID_AS5048_B; });
-const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry.route("uavcan.pub.AS5048_b.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_ro_uavcan_pub_bumper_id        = node_registry.route("uavcan.pub.bumper.id", {true}, []() { return ID_BUMPER; });
-const auto reg_ro_uavcan_pub_bumper_type      = node_registry.route("uavcan.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
+const auto reg_ro_uavcan_node_description     = node_registry.route ("uavcan.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
+const auto reg_ro_uavcan_pub_AS5048_a_id      = node_registry.route ("uavcan.pub.AS5048_a.id", {true}, []() { return ID_AS5048_A; });
+const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry.route ("uavcan.pub.AS5048_a.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_ro_uavcan_pub_AS5048_b_id      = node_registry.route ("uavcan.pub.AS5048_b.id", {true}, []() { return ID_AS5048_B; });
+const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry.route ("uavcan.pub.AS5048_b.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_ro_uavcan_pub_bumper_id        = node_registry.route ("uavcan.pub.bumper.id", {true}, []() { return ID_BUMPER; });
+const auto reg_ro_uavcan_pub_bumper_type      = node_registry.route ("uavcan.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
 const auto reg_rw_aux_update_period_angle_ms  = node_registry.expose("aux.update_period_ms.angle", {}, update_period_angle_ms);
 const auto reg_rw_aux_update_period_bumper_ms = node_registry.expose("aux.update_period_ms.bumper", {}, update_period_bumper_ms);
 
@@ -259,7 +259,6 @@ void loop()
   static unsigned long prev_heartbeat = 0;
   static unsigned long prev_bumper = 0;
   static unsigned long prev_angle_sensor = 0;
-  static unsigned long prev_battery_voltage = 0;
 
   unsigned long const now = millis();
 
