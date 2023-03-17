@@ -58,11 +58,9 @@ static int const BUMPER_PIN             = 6;
 
 static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
 
-static CanardPortID const ID_INPUT_VOLTAGE       = 1001U;
-static CanardPortID const ID_AS5048_A            = 1002U;
-static CanardPortID const ID_AS5048_B            = 1003U;
-static CanardPortID const ID_BUMPER              = 1004U;
-static CanardPortID const ID_LED1                = 1005U;
+static CanardPortID const ID_AS5048_A = 1001U;
+static CanardPortID const ID_AS5048_B = 1002U;
+static CanardPortID const ID_BUMPER   = 1003U;
 
 static SPISettings  const MCP2515x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE0};
 static SPISettings  const AS504x_SPI_SETTING{1000000, MSBFIRST, SPI_MODE1};
@@ -109,8 +107,6 @@ Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const 
 
 Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>
   (Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Real32_1_0> input_voltage_pub = node_hdl.create_publisher<Real32_1_0>
-  (ID_INPUT_VOLTAGE, 1*1000*1000UL /* = 1 sec in usecs. */);
 Publisher<Real32_1_0> as5048a_pub = node_hdl.create_publisher<Real32_1_0>
   (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
 Publisher<Real32_1_0> as5048b_pub = node_hdl.create_publisher<Real32_1_0>
@@ -153,7 +149,6 @@ I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
 /* REGISTER ***************************************************************************/
 
 static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
-static uint16_t update_period_vbat_ms = 3000;
 static uint16_t update_period_angle_ms = 50;
 static uint16_t update_period_bumper_ms = 500;
 
