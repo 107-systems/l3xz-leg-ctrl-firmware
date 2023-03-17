@@ -281,7 +281,7 @@ void loop()
       a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
     Real32_1_0 uavcan_as5048_a;
-    uavcan_as5048_a.value = a_angle_deg - a_angle_offset_deg;
+    uavcan_as5048_a.value = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
     as5048a_pub->publish(uavcan_as5048_a);
     DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
 
@@ -290,7 +290,7 @@ void loop()
       b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
     Real32_1_0 uavcan_as5048_b;
-    uavcan_as5048_b.value = b_angle_deg - b_angle_offset_deg;
+    uavcan_as5048_b.value = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
     as5048b_pub->publish(uavcan_as5048_b);
     DBG_INFO("TX tibia angle: %0.f (offset: %0.2f)", b_angle_deg, b_angle_offset_deg);
 
