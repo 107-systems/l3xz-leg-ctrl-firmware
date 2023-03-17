@@ -34,10 +34,6 @@
 #define DBG_ENABLE_DEBUG
 #include <107-Arduino-Debug.hpp>
 
-#undef max
-#undef min
-#include <algorithm>
-
 /**************************************************************************************
  * NAMESPACE
  **************************************************************************************/
@@ -49,12 +45,12 @@ using namespace uavcan::primitive::scalar;
  * CONSTANTS
  **************************************************************************************/
 
-static int const MKRCAN_MCP2515_CS_PIN  = 3;
-static int const MKRCAN_MCP2515_INT_PIN = 9;
-static int const AS504x_A_CS_PIN        = 4;
-static int const AS504x_B_CS_PIN        = 5;
-static int const LED1_PIN               = 2;
-static int const BUMPER_PIN             = 6;
+static int const MKRCAN_MCP2515_CS_PIN  = D3;
+static int const MKRCAN_MCP2515_INT_PIN = D9;
+static int const AS504x_A_CS_PIN        = D4;
+static int const AS504x_B_CS_PIN        = D5;
+static int const LED1_PIN               = D2;
+static int const BUMPER_PIN             = D6;
 
 static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
 
@@ -119,28 +115,16 @@ ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteComman
   2*1000*1000UL,
   onExecuteCommand_1_1_Request_Received);
 
-ArduinoAS504x angle_A_pos_sensor([]()
-                                 {
-                                   SPI.beginTransaction(AS504x_SPI_SETTING);
-                                 },
-                                 []()
-                                 {
-                                   SPI.endTransaction();
-                                 },
-                                 [](){ digitalWrite(AS504x_A_CS_PIN, LOW); },
-                                 [](){ digitalWrite(AS504x_A_CS_PIN, HIGH); },
+ArduinoAS504x angle_A_pos_sensor([]() { SPI.beginTransaction(AS504x_SPI_SETTING); },
+                                 []() { SPI.endTransaction(); },
+                                 []() { digitalWrite(AS504x_A_CS_PIN, LOW); },
+                                 []() { digitalWrite(AS504x_A_CS_PIN, HIGH); },
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                  delayMicroseconds);
-ArduinoAS504x angle_B_pos_sensor([]()
-                                 {
-                                   SPI.beginTransaction(AS504x_SPI_SETTING);
-                                 },
-                                 []()
-                                 {
-                                   SPI.endTransaction();
-                                 },
-                                 [](){ digitalWrite(AS504x_B_CS_PIN, LOW); },
-                                 [](){ digitalWrite(AS504x_B_CS_PIN, HIGH); },
+ArduinoAS504x angle_B_pos_sensor([]() { SPI.beginTransaction(AS504x_SPI_SETTING); },
+                                 []() { SPI.endTransaction(); },
+                                 []() { digitalWrite(AS504x_B_CS_PIN, LOW); },
+                                 []() { digitalWrite(AS504x_B_CS_PIN, HIGH); },
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                  delayMicroseconds);
 
@@ -199,7 +183,7 @@ static NodeInfo node_info
 void setup()
 {
   Serial.begin(115200);
-  //while(!Serial) { } /* only for debug */
+  while(!Serial) { } /* only for debug */
 
   /* Setup LED pins and initialize */
   pinMode(LED1_PIN, OUTPUT);
@@ -228,9 +212,9 @@ void setup()
 
   /* set AS504x pins */
   pinMode(AS504x_A_CS_PIN, OUTPUT);
-  digitalWrite(AS504x_A_CS_PIN, LOW);
+  digitalWrite(AS504x_A_CS_PIN, HIGH);
   pinMode(AS504x_B_CS_PIN, OUTPUT);
-  digitalWrite(AS504x_B_CS_PIN, LOW);
+  digitalWrite(AS504x_B_CS_PIN, HIGH);
 
   /* Attach interrupt handler to register MCP2515 signaled by taking INT low */
   pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
@@ -293,7 +277,6 @@ void loop()
   if((now - prev_angle_sensor) > update_period_angle_ms)
   {
     {
-      CriticalSection crit_sec;
       float const a_angle_raw = angle_A_pos_sensor.angle_raw();
       a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
@@ -303,7 +286,6 @@ void loop()
     DBG_INFO("TX femur angle: %0.f (offset: %0.2f)", a_angle_deg, a_angle_offset_deg);
 
     {
-      CriticalSection crit_sec;
       float const b_angle_raw = angle_B_pos_sensor.angle_raw();
       b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
