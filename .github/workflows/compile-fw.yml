@@ -47,6 +47,7 @@ jobs:
             - name: 107-Arduino-MCP2515
             - name: 107-Arduino-Debug
             - name: 107-Arduino-UniqueId
+            - name: 107-Arduino-24LCxx
             - source-url: https://github.com/107-systems/107-Arduino-Cyphal.git
 
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
