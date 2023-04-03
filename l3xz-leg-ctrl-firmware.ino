@@ -25,7 +25,6 @@
 #include <107-Arduino-MCP2515.h>
 #include <107-Arduino-AS504x.h>
 #include <107-Arduino-UniqueId.h>
-#include <I2C_eeprom.h>
 
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
@@ -128,8 +127,6 @@ ArduinoAS504x angle_B_pos_sensor([]() { SPI.beginTransaction(AS504x_SPI_SETTING)
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                  delayMicroseconds);
 
-I2C_eeprom ee(0x50, I2C_DEVICESIZE_24LC64);
-
 /* REGISTER ***************************************************************************/
 
 static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
@@ -166,21 +163,6 @@ void setup()
   pinMode(LED1_PIN, OUTPUT);
   digitalWrite(LED1_PIN, LOW);
   pinMode(BUMPER_PIN, INPUT_PULLUP);
-
-  /* Setup I2C Eeprom */
-  ee.begin();
-  if (! ee.isConnected())
-  {
-    DBG_ERROR("can't find EEPROM.");
-    for(;;) { }
-  }
-
-  uint8_t const eeNodeID = ee.readByte(0);
-  DBG_INFO("node-ID read from EEPROM: %d", static_cast<int>(eeNodeID));
-
-  /* create UAVCAN class */
-  node_hdl.setNodeId(eeNodeID);
-  node_id = eeNodeID;
 
   /* NODE INFO ************************************************************************/
   static auto node_info = node_hdl.create_node_info
