@@ -58,6 +58,9 @@ static CanardPortID const ID_AS5048_A = 1001U;
 static CanardPortID const ID_AS5048_B = 1002U;
 static CanardPortID const ID_BUMPER   = 1003U;
 
+static uint16_t UPDATE_PERIOD_ANGLE_ms  = 50;
+static uint16_t UPDATE_PERIOD_BUMPER_ms = 500;
+
 static SPISettings  const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 static SPISettings  const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
 
@@ -178,8 +181,6 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 /* REGISTER ***************************************************************************/
 
 static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
-static uint16_t update_period_angle_ms = 50;
-static uint16_t update_period_bumper_ms = 500;
 
 #if __GNUC__ >= 11
 
@@ -193,8 +194,6 @@ const auto reg_ro_uavcan_pub_AS5048_b_id      = node_registry->route ("cyphal.pu
 const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_b.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
 const auto reg_ro_uavcan_pub_bumper_id        = node_registry->route ("cyphal.pub.bumper.id", {true}, []() { return ID_BUMPER; });
 const auto reg_ro_uavcan_pub_bumper_type      = node_registry->route ("cyphal.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
-const auto reg_rw_aux_update_period_angle_ms  = node_registry->expose("aux.update_period_ms.angle", {}, update_period_angle_ms);
-const auto reg_rw_aux_update_period_bumper_ms = node_registry->expose("aux.update_period_ms.bumper", {}, update_period_bumper_ms);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -325,7 +324,7 @@ void loop()
     digitalWrite(LED1_PIN, !digitalRead(LED1_PIN));
   }
 
-  if((now - prev_bumper) > update_period_bumper_ms)
+  if((now - prev_bumper) > UPDATE_PERIOD_BUMPER_ms)
   {
     Bit_1_0 uavcan_bumper;
     uavcan_bumper.value = digitalRead(BUMPER_PIN);
@@ -334,7 +333,7 @@ void loop()
     prev_bumper = now;
   }
 
-  if((now - prev_angle_sensor) > update_period_angle_ms)
+  if((now - prev_angle_sensor) > UPDATE_PERIOD_ANGLE_ms)
   {
     {
       float const a_angle_raw = angle_A_pos_sensor.angle_raw();
