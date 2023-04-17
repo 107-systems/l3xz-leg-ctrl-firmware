@@ -285,6 +285,31 @@ void setup()
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
 
+  /* Calculate CAN filter values. */
+  CanardFilter const CAN_FILTER_EXEC_CMD   = canardMakeFilterForService(uavcan::node::ExecuteCommand::Request_1_1::_traits_::FixedPortId, node_id);
+  CanardFilter const CAN_FILTER_NODE_INFO  = canardMakeFilterForService(uavcan::node::GetInfo::Request_1_0::_traits_::FixedPortId, node_id);
+  CanardFilter const CAN_FILTER_REG_LIST   = canardMakeFilterForService(uavcan::_register::List::Request_1_0::_traits_::FixedPortId, node_id);
+  CanardFilter const CAN_FILTER_REG_ACCESS = canardMakeFilterForService(uavcan::_register::Access::Request_1_0::_traits_::FixedPortId, node_id);
+
+  uint32_t const RXMB0_MASK = CAN_FILTER_EXEC_CMD.extended_mask | CAN_FILTER_NODE_INFO.extended_mask;
+  size_t const RXMB0_FILTER_SIZE = 2; /* Up to 2. */
+  uint32_t const RXMB0_FILTER[RXMB0_FILTER_SIZE] =
+  {
+    CAN_FILTER_EXEC_CMD.extended_can_id,
+    CAN_FILTER_NODE_INFO.extended_can_id
+  };
+  mcp2515.enableFilter(MCP2515::RxB::RxB0, RXMB0_MASK, RXMB0_FILTER, RXMB0_FILTER_SIZE);
+
+  uint32_t const RXMB1_MASK = CAN_FILTER_REG_LIST.extended_mask | CAN_FILTER_REG_ACCESS.extended_mask;
+  size_t const RXMB1_FILTER_SIZE = 2; /* Could be up to 4 .*/
+  uint32_t const RXMB1_FILTER[RXMB1_FILTER_SIZE] =
+  {
+    CAN_FILTER_REG_LIST.extended_can_id,
+    CAN_FILTER_REG_ACCESS.extended_can_id
+  };
+  mcp2515.enableFilter(MCP2515::RxB::RxB1, RXMB1_MASK, RXMB1_FILTER, RXMB1_FILTER_SIZE);
+
+
   DBG_INFO("init complete.");
 }
 
