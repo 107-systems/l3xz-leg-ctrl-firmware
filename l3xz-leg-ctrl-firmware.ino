@@ -11,6 +11,8 @@
  * INCLUDE
  **************************************************************************************/
 
+#include <limits>
+
 #include <SPI.h>
 #include <Wire.h>
 
@@ -43,10 +45,6 @@ static int const LED1_PIN               = D2;
 static int const BUMPER_PIN             = D6;
 
 static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
-
-static CanardPortID const DEFAULT_ID_AS5048_A = 1001U;
-static CanardPortID const DEFAULT_ID_AS5048_B = 1002U;
-static CanardPortID const DEFAULT_ID_BUMPER   = 1003U;
 
 static uint16_t const UPDATE_PERIOD_ANGLE_ms     = 50;
 static uint16_t const UPDATE_PERIOD_BUMPER_ms    = 500;
@@ -168,10 +166,10 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 
 /* REGISTER ***************************************************************************/
 
-static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
-static CanardPortID port_id_as5048_a = DEFAULT_ID_AS5048_A;
-static CanardPortID port_id_as5048_b = DEFAULT_ID_AS5048_B;
-static CanardPortID port_id_bumper = DEFAULT_ID_BUMPER;
+static CanardNodeID node_id          = DEFAULT_LEG_CONTROLLER_NODE_ID;
+static CanardPortID port_id_as5048_a = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_as5048_b = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_bumper   = std::numeric_limits<CanardPortID>::max();
 
 #if __GNUC__ >= 11
 
@@ -230,9 +228,12 @@ void setup()
    * register values.
    */
   node_hdl.setNodeId(node_id);
-  as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_a, 1*1000*1000UL /* = 1 sec in usecs. */);
-  as5048b_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_b, 1*1000*1000UL /* = 1 sec in usecs. */);
-  bumper_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>  (port_id_bumper,   1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_as5048_a != std::numeric_limits<CanardPortID>::max())
+    as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_a, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_as5048_b != std::numeric_limits<CanardPortID>::max())
+    as5048b_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_b, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_bumper != std::numeric_limits<CanardPortID>::max())
+    bumper_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>  (port_id_bumper,   1*1000*1000UL /* = 1 sec in usecs. */);
 
   DBG_INFO("Node ID: %d\n\r\tAS5048 A ID = %d\n\r\tAS5048 B ID = %d\n\r\tBUMPER   ID = %d",
            node_id, port_id_as5048_a, port_id_as5048_b, port_id_bumper);
@@ -328,7 +329,9 @@ void loop()
   {
     uavcan::primitive::scalar::Bit_1_0 uavcan_bumper;
     uavcan_bumper.value = digitalRead(BUMPER_PIN);
-    bumper_pub->publish(uavcan_bumper);
+
+    if (bumper_pub)
+      bumper_pub->publish(uavcan_bumper);
 
     prev_bumper = now;
   }
@@ -341,7 +344,8 @@ void loop()
     }
     uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_a;
     uavcan_as5048_a.radian = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
-    as5048a_pub->publish(uavcan_as5048_a);
+    if (as5048a_pub)
+      as5048a_pub->publish(uavcan_as5048_a);
     DBG_VERBOSE("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
 
     {
@@ -350,7 +354,8 @@ void loop()
     }
     uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_b;
     uavcan_as5048_b.radian = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
-    as5048b_pub->publish(uavcan_as5048_b);
+    if (as5048b_pub)
+      as5048b_pub->publish(uavcan_as5048_b);
     DBG_VERBOSE("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
 
     prev_angle_sensor = now;
