@@ -44,9 +44,9 @@ static int const BUMPER_PIN             = D6;
 
 static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
 
-static CanardPortID const ID_AS5048_A = 1001U;
-static CanardPortID const ID_AS5048_B = 1002U;
-static CanardPortID const ID_BUMPER   = 1003U;
+static CanardPortID const DEFAULT_ID_AS5048_A = 1001U;
+static CanardPortID const DEFAULT_ID_AS5048_B = 1002U;
+static CanardPortID const DEFAULT_ID_BUMPER   = 1003U;
 
 static uint16_t UPDATE_PERIOD_ANGLE_ms  = 50;
 static uint16_t UPDATE_PERIOD_BUMPER_ms = 500;
@@ -70,7 +70,7 @@ static float b_angle_offset_deg = 0.0f;
  **************************************************************************************/
 
 void onReceiveBufferFull(CanardFrame const &);
-ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const &);
+uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(uavcan::node::ExecuteCommand::Request_1_1 const &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
@@ -96,15 +96,12 @@ Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const 
 
 Publisher<uavcan::node::Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<uavcan::node::Heartbeat_1_0>
   (uavcan::node::Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>
-  (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048b_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>
-  (ID_AS5048_B, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<uavcan::primitive::scalar::uavcan::primitive::scalar> bumper_pub = node_hdl.create_publisher<uavcan::primitive::scalar::uavcan::primitive::scalar>
-  (ID_BUMPER, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048a_pub;
+Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048b_pub;
+Publisher<uavcan::primitive::scalar::Bit_1_0> bumper_pub;
 
-ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(
-  ExecuteCommand::Request_1_1::_traits_::FixedPortId,
+ServiceServer execute_command_srv = node_hdl.create_service_server<uavcan::node::ExecuteCommand::Request_1_1, uavcan::node::ExecuteCommand::Response_1_1>(
+  uavcan::node::ExecuteCommand::Request_1_1::_traits_::FixedPortId,
   2*1000*1000UL,
   onExecuteCommand_1_1_Request_Received);
 
@@ -171,6 +168,9 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 /* REGISTER ***************************************************************************/
 
 static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
+static CanardPortID port_id_as5048_a = DEFAULT_ID_AS5048_A;
+static CanardPortID port_id_as5048_b = DEFAULT_ID_AS5048_B;
+static CanardPortID port_id_bumper = DEFAULT_ID_BUMPER;
 
 #if __GNUC__ >= 11
 
@@ -178,11 +178,11 @@ const auto node_registry = node_hdl.create_registry();
 
 const auto reg_rw_uavcan_node_id              = node_registry->expose("cyphal.node.id", {true}, node_id);
 const auto reg_ro_uavcan_node_description     = node_registry->route ("cyphal.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
-const auto reg_ro_uavcan_pub_AS5048_a_id      = node_registry->route ("cyphal.pub.AS5048_a.id", {true}, []() { return ID_AS5048_A; });
-const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_a.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_ro_uavcan_pub_AS5048_b_id      = node_registry->route ("cyphal.pub.AS5048_b.id", {true}, []() { return ID_AS5048_B; });
-const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_b.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_ro_uavcan_pub_bumper_id        = node_registry->route ("cyphal.pub.bumper.id", {true}, []() { return ID_BUMPER; });
+const auto reg_rw_uavcan_pub_AS5048_a_id      = node_registry->expose("cyphal.pub.AS5048_A.id", {true}, port_id_as5048_a);
+const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_A.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_uavcan_pub_AS5048_b_id      = node_registry->expose("cyphal.pub.AS5048_B.id", {true}, port_id_as5048_b);
+const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_B.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_uavcan_pub_bumper_id        = node_registry->expose("cyphal.pub.bumper.id", {true}, port_id_bumper);
 const auto reg_ro_uavcan_pub_bumper_type      = node_registry->route ("cyphal.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
 
 #endif /* __GNUC__ >= 11 */
@@ -216,16 +216,25 @@ void setup()
   }
 
 #if __GNUC__ >= 11
-  DBG_INFO("cyphal::support::load ... ");
   auto const rc_load = cyphal::support::load(kv_storage, *node_registry);
   if (rc_load.has_value()) {
     DBG_ERROR("cyphal::support::load failed with %d", static_cast<int>(rc_load.value()));
     return;
   }
-  node_hdl.setNodeId(node_id); /* Update node if a different value has been loaded from the permanent storage. */
 #endif /* __GNUC__ >= 11 */
 
   (void)filesystem.unmount();
+
+  /* Update/create all objects which depend on persistently stored
+   * register values.
+   */
+  node_hdl.setNodeId(node_id);
+  as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_a, 1*1000*1000UL /* = 1 sec in usecs. */);
+  as5048b_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_b, 1*1000*1000UL /* = 1 sec in usecs. */);
+  bumper_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>  (port_id_bumper,   1*1000*1000UL /* = 1 sec in usecs. */);
+
+  DBG_INFO("Node ID: %d\n\r\tAS5048 A ID = %d\n\r\tAS5048 B ID = %d\n\r\tBUMPER   ID = %d",
+           node_id, port_id_as5048_a, port_id_as5048_b, port_id_bumper);
 
   /* NODE INFO ************************************************************************/
   static const auto node_info = node_hdl.create_node_info
@@ -271,7 +280,7 @@ void setup()
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
 
-  DBG_INFO("initialisation finished");
+  DBG_INFO("init complete.");
 }
 
 void loop()
@@ -316,7 +325,7 @@ void loop()
 
   if((now - prev_bumper) > UPDATE_PERIOD_BUMPER_ms)
   {
-    uavcan::primitive::scalar::uavcan::primitive::scalar uavcan_bumper;
+    uavcan::primitive::scalar::Bit_1_0 uavcan_bumper;
     uavcan_bumper.value = digitalRead(BUMPER_PIN);
     bumper_pub->publish(uavcan_bumper);
 
@@ -356,26 +365,26 @@ void onReceiveBufferFull(CanardFrame const & frame)
   node_hdl.onCanFrameReceived(frame);
 }
 
-ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const & req)
+uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(uavcan::node::ExecuteCommand::Request_1_1 const & req)
 {
-  ExecuteCommand::Response_1_1 rsp;
+  uavcan::node::ExecuteCommand::Response_1_1 rsp;
 
-  if (req.command == ExecuteCommand::Request_1_1::COMMAND_RESTART)
+  if (req.command == uavcan::node::ExecuteCommand::Request_1_1::COMMAND_RESTART)
   {
     if (auto const opt_err = cyphal::support::platform::reset_async(std::chrono::milliseconds(1000)); opt_err.has_value())
     {
       DBG_ERROR("reset_async failed with error code %d", static_cast<int>(opt_err.value()));
-      rsp.status = ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
       return rsp;
     }
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
-  else if (req.command == ExecuteCommand::Request_1_1::COMMAND_STORE_PERSISTENT_STATES)
+  else if (req.command == uavcan::node::ExecuteCommand::Request_1_1::COMMAND_STORE_PERSISTENT_STATES)
   {
     if (auto const err_mount = filesystem.mount(); err_mount.has_value())
     {
       DBG_ERROR("Mounting failed with error code %d", static_cast<int>(err_mount.value()));
-      rsp.status = ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
       return rsp;
     }
 #if __GNUC__ >= 11
@@ -383,13 +392,13 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
     if (rc_save.has_value())
     {
       DBG_ERROR("cyphal::support::save failed with %d", static_cast<int>(rc_save.value()));
-      rsp.status = ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
       return rsp;
     }
-     rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
 #endif /* __GNUC__ >= 11 */
     (void)filesystem.unmount();
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
   else if (req.command == 0xCAFE)
   {
@@ -401,10 +410,10 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
              a_angle_offset_deg,
              b_angle_offset_deg);
 
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
   else {
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_BAD_COMMAND;
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_BAD_COMMAND;
   }
 
   return rsp;
