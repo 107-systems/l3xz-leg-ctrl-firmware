@@ -30,16 +30,6 @@
 #include <107-Arduino-Debug.hpp>
 
 /**************************************************************************************
- * NAMESPACE
- **************************************************************************************/
-
-using namespace uavcan::node;
-using namespace uavcan::si::unit;
-using namespace uavcan::_register;
-using namespace uavcan::primitive::scalar;
-
-
-/**************************************************************************************
  * CONSTANTS
  **************************************************************************************/
 
@@ -104,13 +94,13 @@ ArduinoMCP2515 mcp2515([]()
 Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
 Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); }, DEFAULT_LEG_CONTROLLER_NODE_ID);
 
-Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>
-  (Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<angle::Scalar_1_0> as5048a_pub = node_hdl.create_publisher<angle::Scalar_1_0>
+Publisher<uavcan::node::Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<uavcan::node::Heartbeat_1_0>
+  (uavcan::node::Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>
   (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<angle::Scalar_1_0> as5048b_pub = node_hdl.create_publisher<angle::Scalar_1_0>
+Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048b_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>
   (ID_AS5048_B, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Bit_1_0> bumper_pub = node_hdl.create_publisher<Bit_1_0>
+Publisher<uavcan::primitive::scalar::uavcan::primitive::scalar> bumper_pub = node_hdl.create_publisher<uavcan::primitive::scalar::uavcan::primitive::scalar>
   (ID_BUMPER, 1*1000*1000UL /* = 1 sec in usecs. */);
 
 ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(
@@ -308,7 +298,7 @@ void loop()
 
   if((now - prev_heartbeat) > 1000)
   {
-    Heartbeat_1_0 msg;
+    uavcan::node::Heartbeat_1_0 msg;
 
     msg.uptime = millis() / 1000;
     msg.health.value = uavcan::node::Health_1_0::NOMINAL;
@@ -326,7 +316,7 @@ void loop()
 
   if((now - prev_bumper) > UPDATE_PERIOD_BUMPER_ms)
   {
-    Bit_1_0 uavcan_bumper;
+    uavcan::primitive::scalar::uavcan::primitive::scalar uavcan_bumper;
     uavcan_bumper.value = digitalRead(BUMPER_PIN);
     bumper_pub->publish(uavcan_bumper);
 
@@ -339,7 +329,7 @@ void loop()
       float const a_angle_raw = angle_A_pos_sensor.angle_raw();
       a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
-    angle::Scalar_1_0 uavcan_as5048_a;
+    uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_a;
     uavcan_as5048_a.radian = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
     as5048a_pub->publish(uavcan_as5048_a);
     DBG_VERBOSE("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
@@ -348,7 +338,7 @@ void loop()
       float const b_angle_raw = angle_B_pos_sensor.angle_raw();
       b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
-    angle::Scalar_1_0 uavcan_as5048_b;
+    uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_b;
     uavcan_as5048_b.radian = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
     as5048b_pub->publish(uavcan_as5048_b);
     DBG_VERBOSE("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
