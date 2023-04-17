@@ -49,3 +49,12 @@ yakut sub 1001:uavcan.si.unit.angle.Scalar.1.0 --with-metadata
 ---
 ...
 ```
+or
+```bash
+yakut sub 1003:uavcan.primitive.scalar.Bit.1.0 --with-metadata
+...
+---
+1003:
+  _meta_: {ts_system: 1681729517.634219, ts_monotonic: 24298.607404, source_node_id: 31, transfer_id: 10, priority: nominal, dtype: uavcan.primitive.scalar.Bit.1.0}
+  value: false
+```

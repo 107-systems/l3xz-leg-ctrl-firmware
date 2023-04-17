@@ -1,48 +1,41 @@
 /*
- * Software for the leg controller for the L3X-Z Hexapod
+ * Firmware for the leg controller for the L3X-Z Hexapod Robot.
  *
  * Hardware:
- *   - Arduino Nano 33 IoT
+ *   - Arduino Nano RP2040 Connect
  *   - MCP2515
  * https://github.com/107-systems/l3xz-hw_leg-controller
- *
- * Used Subject-IDs
- * 1001 - pub - Real32 - input voltage
- * 1002 - pub - Real32 - AS5048-A-angle
- * 1003 - pub - Real32 - AS5048-B-angle
- * 1004 - pub - Bit    - bumper
- * 1005 - sub - Bit    - LED1
  */
 
 /**************************************************************************************
  * INCLUDE
  **************************************************************************************/
 
+#include <limits>
+
 #include <SPI.h>
 #include <Wire.h>
 
 #include <107-Arduino-Cyphal.h>
-#include <107-Arduino-MCP2515.h>
+#include <107-Arduino-Cyphal-Support.h>
+
 #include <107-Arduino-AS504x.h>
-#include <107-Arduino-UniqueId.h>
+#include <107-Arduino-MCP2515.h>
+#include <107-Arduino-littlefs.h>
+#include <107-Arduino-24LCxx.hpp>
 
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
 #define DBG_ENABLE_INFO
 #define DBG_ENABLE_DEBUG
+//#define DBG_ENABLE_VERBOSE
 #include <107-Arduino-Debug.hpp>
-
-/**************************************************************************************
- * NAMESPACE
- **************************************************************************************/
-
-using namespace uavcan::node;
-using namespace uavcan::primitive::scalar;
-using namespace uavcan::si::unit;
 
 /**************************************************************************************
  * CONSTANTS
  **************************************************************************************/
+
+static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MKRCAN_MCP2515_CS_PIN  = D3;
 static int const MKRCAN_MCP2515_INT_PIN = D9;
@@ -51,14 +44,12 @@ static int const AS504x_B_CS_PIN        = D5;
 static int const LED1_PIN               = D2;
 static int const BUMPER_PIN             = D6;
 
-static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
+static uint16_t const UPDATE_PERIOD_ANGLE_ms     = 50;
+static uint16_t const UPDATE_PERIOD_BUMPER_ms    = 500;
+static uint16_t const UPDATE_PERIOD_HEARTBEAT_ms = 1000;
 
-static CanardPortID const ID_AS5048_A = 1001U;
-static CanardPortID const ID_AS5048_B = 1002U;
-static CanardPortID const ID_BUMPER   = 1003U;
-
-static SPISettings  const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
-static SPISettings  const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
+static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
+static SPISettings const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
 
 /**************************************************************************************
  * VARIABLES
@@ -76,7 +67,7 @@ static float b_angle_offset_deg = 0.0f;
  **************************************************************************************/
 
 void onReceiveBufferFull(CanardFrame const &);
-ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const &);
+uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(uavcan::node::ExecuteCommand::Request_1_1 const &);
 
 /**************************************************************************************
  * GLOBAL VARIABLES
@@ -98,19 +89,16 @@ ArduinoMCP2515 mcp2515([]()
                        nullptr);
 
 Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
-Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); }, DEFAULT_LEG_CONTROLLER_NODE_ID);
+Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); });
 
-Publisher<Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<Heartbeat_1_0>
-  (Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<angle::Scalar_1_0> as5048a_pub = node_hdl.create_publisher<angle::Scalar_1_0>
-  (ID_AS5048_A, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<angle::Scalar_1_0> as5048b_pub = node_hdl.create_publisher<angle::Scalar_1_0>
-  (ID_AS5048_B, 1*1000*1000UL /* = 1 sec in usecs. */);
-Publisher<Bit_1_0> bumper_pub = node_hdl.create_publisher<Bit_1_0>
-  (ID_BUMPER, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<uavcan::node::Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<uavcan::node::Heartbeat_1_0>
+  (uavcan::node::Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048a_pub;
+Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048b_pub;
+Publisher<uavcan::primitive::scalar::Bit_1_0> bumper_pub;
 
-ServiceServer execute_command_srv = node_hdl.create_service_server<ExecuteCommand::Request_1_1, ExecuteCommand::Response_1_1>(
-  ExecuteCommand::Request_1_1::_traits_::FixedPortId,
+ServiceServer execute_command_srv = node_hdl.create_service_server<uavcan::node::ExecuteCommand::Request_1_1, uavcan::node::ExecuteCommand::Response_1_1>(
+  uavcan::node::ExecuteCommand::Request_1_1::_traits_::FixedPortId,
   2*1000*1000UL,
   onExecuteCommand_1_1_Request_Received);
 
@@ -127,26 +115,72 @@ ArduinoAS504x angle_B_pos_sensor([]() { SPI.beginTransaction(AS504x_SPI_SETTING)
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                  delayMicroseconds);
 
+/* LITTLEFS/EEPROM ********************************************************************/
+
+static EEPROM_24LCxx eeprom(EEPROM_24LCxx_Type::LC64,
+                            EEPROM_I2C_DEV_ADDR,
+                            [](size_t const dev_addr) { Wire.beginTransmission(dev_addr); },
+                            [](uint8_t const data) { Wire.write(data); },
+                            []() { return Wire.endTransmission(); },
+                            [](uint8_t const dev_addr, size_t const len) -> size_t { return Wire.requestFrom(dev_addr, len); },
+                            []() { return Wire.available(); },
+                            []() { return Wire.read(); });
+
+static littlefs::FilesystemConfig filesystem_config
+  (
+    +[](const struct lfs_config *c, lfs_block_t block, lfs_off_t off, void *buffer, lfs_size_t size) -> int
+    {
+      eeprom.read_page((block * c->block_size) + off, (uint8_t *)buffer, size);
+      return LFS_ERR_OK;
+    },
+    +[](const struct lfs_config *c, lfs_block_t block, lfs_off_t off, const void *buffer, lfs_size_t size) -> int
+    {
+      eeprom.write_page((block * c->block_size) + off, (uint8_t const *)buffer, size);
+      return LFS_ERR_OK;
+    },
+    +[](const struct lfs_config *c, lfs_block_t block) -> int
+    {
+      for(size_t off = 0; off < c->block_size; off += eeprom.page_size())
+        eeprom.fill_page((block * c->block_size) + off, 0xFF);
+      return LFS_ERR_OK;
+    },
+    +[](const struct lfs_config *c) -> int
+    {
+      return LFS_ERR_OK;
+    },
+    eeprom.page_size(),
+    eeprom.page_size(),
+    (eeprom.page_size() * 4), /* littlefs demands (erase) block size to exceed read/prog size. */
+    eeprom.device_size() / (eeprom.page_size() * 4),
+    500,
+    eeprom.page_size(),
+    eeprom.page_size()
+  );
+static littlefs::Filesystem filesystem(filesystem_config);
+
+#if __GNUC__ >= 11
+cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesystem);
+#endif /* __GNUC__ >= 11 */
+
 /* REGISTER ***************************************************************************/
 
-static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
-static uint16_t update_period_angle_ms = 50;
-static uint16_t update_period_bumper_ms = 500;
+static uint16_t     node_id          = std::numeric_limits<uint16_t>::max();
+static CanardPortID port_id_as5048_a = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_as5048_b = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_bumper   = std::numeric_limits<CanardPortID>::max();
 
 #if __GNUC__ >= 11
 
 const auto node_registry = node_hdl.create_registry();
 
-const auto reg_rw_uavcan_node_id              = node_registry->expose("cyphal.node.id", {}, node_id);
+const auto reg_rw_uavcan_node_id              = node_registry->expose("cyphal.node.id", {true}, node_id);
 const auto reg_ro_uavcan_node_description     = node_registry->route ("cyphal.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
-const auto reg_ro_uavcan_pub_AS5048_a_id      = node_registry->route ("cyphal.pub.AS5048_a.id", {true}, []() { return ID_AS5048_A; });
-const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_a.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_ro_uavcan_pub_AS5048_b_id      = node_registry->route ("cyphal.pub.AS5048_b.id", {true}, []() { return ID_AS5048_B; });
-const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_b.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_ro_uavcan_pub_bumper_id        = node_registry->route ("cyphal.pub.bumper.id", {true}, []() { return ID_BUMPER; });
+const auto reg_rw_uavcan_pub_AS5048_a_id      = node_registry->expose("cyphal.pub.AS5048_A.id", {true}, port_id_as5048_a);
+const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_A.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_uavcan_pub_AS5048_b_id      = node_registry->expose("cyphal.pub.AS5048_B.id", {true}, port_id_as5048_b);
+const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_B.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_uavcan_pub_bumper_id        = node_registry->expose("cyphal.pub.bumper.id", {true}, port_id_bumper);
 const auto reg_ro_uavcan_pub_bumper_type      = node_registry->route ("cyphal.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
-const auto reg_rw_aux_update_period_angle_ms  = node_registry->expose("aux.update_period_ms.angle", {}, update_period_angle_ms);
-const auto reg_rw_aux_update_period_bumper_ms = node_registry->expose("aux.update_period_ms.bumper", {}, update_period_bumper_ms);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -159,13 +193,56 @@ void setup()
   Serial.begin(115200);
   while(!Serial) { } /* only for debug */
 
-  /* Setup LED pins and initialize */
-  pinMode(LED1_PIN, OUTPUT);
-  digitalWrite(LED1_PIN, LOW);
-  pinMode(BUMPER_PIN, INPUT_PULLUP);
+  /* LITTLEFS/EEPROM ********************************************************************/
+  Wire.begin();
+
+  if (!eeprom.isConnected()) {
+    DBG_ERROR("Connecting to EEPROM failed.");
+    return;
+  }
+  Serial.println(eeprom);
+
+  if (auto const err_mount = filesystem.mount(); err_mount.has_value()) {
+    DBG_ERROR("Mounting failed with error code %d", static_cast<int>(err_mount.value()));
+    (void)filesystem.format();
+  }
+
+  if (auto const err_mount = filesystem.mount(); err_mount.has_value()) {
+    DBG_ERROR("Mounting failed again with error code %d", static_cast<int>(err_mount.value()));
+    return;
+  }
+
+#if __GNUC__ >= 11
+  auto const rc_load = cyphal::support::load(kv_storage, *node_registry);
+  if (rc_load.has_value()) {
+    DBG_ERROR("cyphal::support::load failed with %d", static_cast<int>(rc_load.value()));
+    return;
+  }
+#endif /* __GNUC__ >= 11 */
+
+  (void)filesystem.unmount();
+
+  /* If the node ID contained in the register points to an undefined
+   * node ID, assign node ID 0 to this node.
+   */
+  if (node_id > CANARD_NODE_ID_MAX)
+    node_id = 0;
+  node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
+  /* Update/create all objects which depend on persistently stored
+   * register values.
+   */
+  if (port_id_as5048_a != std::numeric_limits<CanardPortID>::max())
+    as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_a, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_as5048_b != std::numeric_limits<CanardPortID>::max())
+    as5048b_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_b, 1*1000*1000UL /* = 1 sec in usecs. */);
+  if (port_id_bumper != std::numeric_limits<CanardPortID>::max())
+    bumper_pub = node_hdl.create_publisher<uavcan::primitive::scalar::Bit_1_0>  (port_id_bumper,   1*1000*1000UL /* = 1 sec in usecs. */);
+
+  DBG_INFO("Node ID: %d\n\r\tAS5048 A ID = %d\n\r\tAS5048 B ID = %d\n\r\tBUMPER   ID = %d",
+           node_id, port_id_as5048_a, port_id_as5048_b, port_id_bumper);
 
   /* NODE INFO ************************************************************************/
-  static auto node_info = node_hdl.create_node_info
+  static const auto node_info = node_hdl.create_node_info
   (
     /* uavcan.node.Version.1.0 protocol_version */
     1, 0,
@@ -180,12 +257,20 @@ void setup()
     0,
 #endif
     /* saturated uint8[16] unique_id */
-    OpenCyphalUniqueId(),
+    cyphal::support::UniqueId::instance().value(),
     /* saturated uint8[<=50] name */
     "107-systems.l3xz-leg-ctrl");
 
+  /* Setup LED pins and initialize */
+  pinMode(LED1_PIN, OUTPUT);
+  digitalWrite(LED1_PIN, LOW);
+
+  /* Setup bumper pin. */
+  pinMode(BUMPER_PIN, INPUT_PULLUP);
+
   /* Setup SPI access */
   SPI.begin();
+  pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
   pinMode(MKRCAN_MCP2515_CS_PIN, OUTPUT);
   digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
 
@@ -196,12 +281,11 @@ void setup()
   digitalWrite(AS504x_B_CS_PIN, HIGH);
 
   /* Initialize MCP2515 */
-  pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
   mcp2515.begin();
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
 
-  DBG_INFO("initialisation finished");
+  DBG_INFO("init complete.");
 }
 
 void loop()
@@ -226,11 +310,9 @@ void loop()
   unsigned long const now = millis();
 
 
-  if((now - prev_heartbeat) > 1000)
+  if((now - prev_heartbeat) > UPDATE_PERIOD_BUMPER_ms)
   {
-    digitalWrite(LED1_PIN, !digitalRead(LED1_PIN));
-
-    Heartbeat_1_0 msg;
+    uavcan::node::Heartbeat_1_0 msg;
 
     msg.uptime = millis() / 1000;
     msg.health.value = uavcan::node::Health_1_0::NOMINAL;
@@ -242,36 +324,42 @@ void loop()
     DBG_INFO("TX Heartbeat (uptime: %d)", msg.uptime);
 
     prev_heartbeat = now;
+
+    digitalWrite(LED1_PIN, !digitalRead(LED1_PIN));
   }
 
-  if((now - prev_bumper) > update_period_bumper_ms)
+  if((now - prev_bumper) > UPDATE_PERIOD_BUMPER_ms)
   {
-    Bit_1_0 uavcan_bumper;
-    uavcan_bumper.value = digitalRead(BUMPER_PIN);
-    bumper_pub->publish(uavcan_bumper);
+    uavcan::primitive::scalar::Bit_1_0 uavcan_bumper;
+    uavcan_bumper.value = digitalRead(BUMPER_PIN) == LOW;
+
+    if (bumper_pub)
+      bumper_pub->publish(uavcan_bumper);
 
     prev_bumper = now;
   }
 
-  if((now - prev_angle_sensor) > update_period_angle_ms)
+  if((now - prev_angle_sensor) > UPDATE_PERIOD_ANGLE_ms)
   {
     {
       float const a_angle_raw = angle_A_pos_sensor.angle_raw();
       a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
-    angle::Scalar_1_0 uavcan_as5048_a;
+    uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_a;
     uavcan_as5048_a.radian = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
-    as5048a_pub->publish(uavcan_as5048_a);
-    DBG_INFO("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
+    if (as5048a_pub)
+      as5048a_pub->publish(uavcan_as5048_a);
+    DBG_VERBOSE("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
 
     {
       float const b_angle_raw = angle_B_pos_sensor.angle_raw();
       b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
     }
-    angle::Scalar_1_0 uavcan_as5048_b;
+    uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_b;
     uavcan_as5048_b.radian = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
-    as5048b_pub->publish(uavcan_as5048_b);
-    DBG_INFO("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
+    if (as5048b_pub)
+      as5048b_pub->publish(uavcan_as5048_b);
+    DBG_VERBOSE("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
 
     prev_angle_sensor = now;
   }
@@ -286,11 +374,42 @@ void onReceiveBufferFull(CanardFrame const & frame)
   node_hdl.onCanFrameReceived(frame);
 }
 
-ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteCommand::Request_1_1 const & req)
+uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(uavcan::node::ExecuteCommand::Request_1_1 const & req)
 {
-  ExecuteCommand::Response_1_1 rsp;
+  uavcan::node::ExecuteCommand::Response_1_1 rsp;
 
-  if (req.command == 0xCAFE)
+  if (req.command == uavcan::node::ExecuteCommand::Request_1_1::COMMAND_RESTART)
+  {
+    if (auto const opt_err = cyphal::support::platform::reset_async(std::chrono::milliseconds(1000)); opt_err.has_value())
+    {
+      DBG_ERROR("reset_async failed with error code %d", static_cast<int>(opt_err.value()));
+      rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      return rsp;
+    }
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+  }
+  else if (req.command == uavcan::node::ExecuteCommand::Request_1_1::COMMAND_STORE_PERSISTENT_STATES)
+  {
+    if (auto const err_mount = filesystem.mount(); err_mount.has_value())
+    {
+      DBG_ERROR("Mounting failed with error code %d", static_cast<int>(err_mount.value()));
+      rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      return rsp;
+    }
+#if __GNUC__ >= 11
+    auto const rc_save = cyphal::support::save(kv_storage, *node_registry);
+    if (rc_save.has_value())
+    {
+      DBG_ERROR("cyphal::support::save failed with %d", static_cast<int>(rc_save.value()));
+      rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      return rsp;
+    }
+     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+#endif /* __GNUC__ >= 11 */
+    (void)filesystem.unmount();
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+  }
+  else if (req.command == 0xCAFE)
   {
     /* Capture the angle offset. */
     a_angle_offset_deg = a_angle_deg;
@@ -300,10 +419,11 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
              a_angle_offset_deg,
              b_angle_offset_deg);
 
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
-  else
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_NOT_AUTHORIZED;
+  else {
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_BAD_COMMAND;
+  }
 
   return rsp;
 }
