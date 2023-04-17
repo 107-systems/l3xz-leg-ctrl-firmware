@@ -1,17 +1,10 @@
 /*
- * Software for the leg controller for the L3X-Z Hexapod
+ * Firmare for the leg controller for the L3X-Z Hexapod
  *
  * Hardware:
- *   - Arduino Nano 33 IoT
+ *   - Arduino Nano RP2040 Connect
  *   - MCP2515
  * https://github.com/107-systems/l3xz-hw_leg-controller
- *
- * Used Subject-IDs
- * 1001 - pub - Real32 - input voltage
- * 1002 - pub - Real32 - AS5048-A-angle
- * 1003 - pub - Real32 - AS5048-B-angle
- * 1004 - pub - Bit    - bumper
- * 1005 - sub - Bit    - LED1
  */
 
 /**************************************************************************************
@@ -22,14 +15,18 @@
 #include <Wire.h>
 
 #include <107-Arduino-Cyphal.h>
-#include <107-Arduino-MCP2515.h>
+#include <107-Arduino-Cyphal-Support.h>
+
 #include <107-Arduino-AS504x.h>
-#include <107-Arduino-UniqueId.h>
+#include <107-Arduino-MCP2515.h>
+#include <107-Arduino-littlefs.h>
+#include <107-Arduino-24LCxx.hpp>
 
 #define DBG_ENABLE_ERROR
 #define DBG_ENABLE_WARNING
 #define DBG_ENABLE_INFO
 #define DBG_ENABLE_DEBUG
+#define DBG_ENABLE_VERBOSE
 #include <107-Arduino-Debug.hpp>
 
 /**************************************************************************************
@@ -37,12 +34,16 @@
  **************************************************************************************/
 
 using namespace uavcan::node;
-using namespace uavcan::primitive::scalar;
 using namespace uavcan::si::unit;
+using namespace uavcan::_register;
+using namespace uavcan::primitive::scalar;
+
 
 /**************************************************************************************
  * CONSTANTS
  **************************************************************************************/
+
+static uint8_t const EEPROM_I2C_DEV_ADDR = 0x50;
 
 static int const MKRCAN_MCP2515_CS_PIN  = D3;
 static int const MKRCAN_MCP2515_INT_PIN = D9;
@@ -127,6 +128,54 @@ ArduinoAS504x angle_B_pos_sensor([]() { SPI.beginTransaction(AS504x_SPI_SETTING)
                                  [](uint8_t const d) -> uint8_t { return SPI.transfer(d); },
                                  delayMicroseconds);
 
+/* LITTLEFS/EEPROM ********************************************************************/
+
+static EEPROM_24LCxx eeprom(EEPROM_24LCxx_Type::LC64,
+                            EEPROM_I2C_DEV_ADDR,
+                            [](size_t const dev_addr) { Wire.beginTransmission(dev_addr); },
+                            [](uint8_t const data) { Wire.write(data); },
+                            []() { return Wire.endTransmission(); },
+                            [](uint8_t const dev_addr, size_t const len) -> size_t { return Wire.requestFrom(dev_addr, len); },
+                            []() { return Wire.available(); },
+                            []() { return Wire.read(); });
+
+static littlefs::FilesystemConfig filesystem_config
+  (
+    +[](const struct lfs_config *c, lfs_block_t block, lfs_off_t off, void *buffer, lfs_size_t size) -> int
+    {
+      eeprom.read_page((block * c->block_size) + off, (uint8_t *)buffer, size);
+      return LFS_ERR_OK;
+    },
+    +[](const struct lfs_config *c, lfs_block_t block, lfs_off_t off, const void *buffer, lfs_size_t size) -> int
+    {
+      eeprom.write_page((block * c->block_size) + off, (uint8_t const *)buffer, size);
+      return LFS_ERR_OK;
+    },
+    +[](const struct lfs_config *c, lfs_block_t block) -> int
+    {
+      for(size_t off = 0; off < c->block_size; off += eeprom.page_size())
+        eeprom.fill_page((block * c->block_size) + off, 0xFF);
+      return LFS_ERR_OK;
+    },
+    +[](const struct lfs_config *c) -> int
+    {
+      return LFS_ERR_OK;
+    },
+    eeprom.page_size(),
+    eeprom.page_size(),
+    (eeprom.page_size() * 4), /* littlefs demands (erase) block size to exceed read/prog size. */
+    eeprom.device_size() / (eeprom.page_size() * 4),
+    500,
+    eeprom.page_size(),
+    eeprom.page_size()
+  );
+static littlefs::Filesystem filesystem(filesystem_config);
+
+#if __GNUC__ >= 11
+cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesystem);
+#endif /* __GNUC__ >= 11 */
+
+
 /* REGISTER ***************************************************************************/
 
 static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
@@ -137,7 +186,7 @@ static uint16_t update_period_bumper_ms = 500;
 
 const auto node_registry = node_hdl.create_registry();
 
-const auto reg_rw_uavcan_node_id              = node_registry->expose("cyphal.node.id", {}, node_id);
+const auto reg_rw_uavcan_node_id              = node_registry->expose("cyphal.node.id", {true}, node_id);
 const auto reg_ro_uavcan_node_description     = node_registry->route ("cyphal.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
 const auto reg_ro_uavcan_pub_AS5048_a_id      = node_registry->route ("cyphal.pub.AS5048_a.id", {true}, []() { return ID_AS5048_A; });
 const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_a.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
@@ -164,8 +213,39 @@ void setup()
   digitalWrite(LED1_PIN, LOW);
   pinMode(BUMPER_PIN, INPUT_PULLUP);
 
+  /* LITTLEFS/EEPROM ********************************************************************/
+  Wire.begin();
+
+  if (!eeprom.isConnected()) {
+    DBG_ERROR("Connecting to EEPROM failed.");
+    return;
+  }
+  Serial.println(eeprom);
+
+  if (auto const err_mount = filesystem.mount(); err_mount.has_value()) {
+    DBG_ERROR("Mounting failed with error code %d", static_cast<int>(err_mount.value()));
+    (void)filesystem.format();
+  }
+
+  if (auto const err_mount = filesystem.mount(); err_mount.has_value()) {
+    DBG_ERROR("Mounting failed again with error code %d", static_cast<int>(err_mount.value()));
+    return;
+  }
+
+#if __GNUC__ >= 11
+  DBG_INFO("cyphal::support::load ... ");
+  auto const rc_load = cyphal::support::load(kv_storage, *node_registry);
+  if (rc_load.has_value()) {
+    DBG_ERROR("cyphal::support::load failed with %d", static_cast<int>(rc_load.value()));
+    return;
+  }
+  node_hdl.setNodeId(node_id); /* Update node if a different value has been loaded from the permanent storage. */
+#endif /* __GNUC__ >= 11 */
+
+  (void)filesystem.unmount();
+
   /* NODE INFO ************************************************************************/
-  static auto node_info = node_hdl.create_node_info
+  static const auto node_info = node_hdl.create_node_info
   (
     /* uavcan.node.Version.1.0 protocol_version */
     1, 0,
@@ -186,6 +266,7 @@ void setup()
 
   /* Setup SPI access */
   SPI.begin();
+  pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
   pinMode(MKRCAN_MCP2515_CS_PIN, OUTPUT);
   digitalWrite(MKRCAN_MCP2515_CS_PIN, HIGH);
 
@@ -196,7 +277,6 @@ void setup()
   digitalWrite(AS504x_B_CS_PIN, HIGH);
 
   /* Initialize MCP2515 */
-  pinMode(MKRCAN_MCP2515_INT_PIN, INPUT_PULLUP);
   mcp2515.begin();
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
   mcp2515.setNormalMode();
@@ -290,7 +370,38 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 {
   ExecuteCommand::Response_1_1 rsp;
 
-  if (req.command == 0xCAFE)
+  if (req.command == ExecuteCommand::Request_1_1::COMMAND_RESTART)
+  {
+    if (auto const opt_err = cyphal::support::platform::reset_async(std::chrono::milliseconds(1000)); opt_err.has_value())
+    {
+      DBG_ERROR("reset_async failed with error code %d", static_cast<int>(opt_err.value()));
+      rsp.status = ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      return rsp;
+    }
+    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+  }
+  else if (req.command == ExecuteCommand::Request_1_1::COMMAND_STORE_PERSISTENT_STATES)
+  {
+    if (auto const err_mount = filesystem.mount(); err_mount.has_value())
+    {
+      DBG_ERROR("Mounting failed with error code %d", static_cast<int>(err_mount.value()));
+      rsp.status = ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      return rsp;
+    }
+#if __GNUC__ >= 11
+    auto const rc_save = cyphal::support::save(kv_storage, *node_registry);
+    if (rc_save.has_value())
+    {
+      DBG_ERROR("cyphal::support::save failed with %d", static_cast<int>(rc_save.value()));
+      rsp.status = ExecuteCommand::Response_1_1::STATUS_FAILURE;
+      return rsp;
+    }
+     rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+#endif /* __GNUC__ >= 11 */
+    (void)filesystem.unmount();
+    rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+  }
+  else if (req.command == 0xCAFE)
   {
     /* Capture the angle offset. */
     a_angle_offset_deg = a_angle_deg;
@@ -302,8 +413,9 @@ ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(ExecuteComman
 
     rsp.status = ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
-  else
-    rsp.status = ExecuteCommand::Response_1_1::STATUS_NOT_AUTHORIZED;
+  else {
+    rsp.status = ExecuteCommand::Response_1_1::STATUS_BAD_COMMAND;
+  }
 
   return rsp;
 }
