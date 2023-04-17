@@ -48,11 +48,12 @@ static CanardPortID const DEFAULT_ID_AS5048_A = 1001U;
 static CanardPortID const DEFAULT_ID_AS5048_B = 1002U;
 static CanardPortID const DEFAULT_ID_BUMPER   = 1003U;
 
-static uint16_t UPDATE_PERIOD_ANGLE_ms  = 50;
-static uint16_t UPDATE_PERIOD_BUMPER_ms = 500;
+static uint16_t const UPDATE_PERIOD_ANGLE_ms     = 50;
+static uint16_t const UPDATE_PERIOD_BUMPER_ms    = 500;
+static uint16_t const UPDATE_PERIOD_HEARTBEAT_ms = 1000;
 
-static SPISettings  const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
-static SPISettings  const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
+static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
+static SPISettings const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
 
 /**************************************************************************************
  * VARIABLES
@@ -305,7 +306,7 @@ void loop()
   unsigned long const now = millis();
 
 
-  if((now - prev_heartbeat) > 1000)
+  if((now - prev_heartbeat) > UPDATE_PERIOD_BUMPER_ms)
   {
     uavcan::node::Heartbeat_1_0 msg;
 
