@@ -26,7 +26,7 @@
 #define DBG_ENABLE_WARNING
 #define DBG_ENABLE_INFO
 #define DBG_ENABLE_DEBUG
-#define DBG_ENABLE_VERBOSE
+//#define DBG_ENABLE_VERBOSE
 #include <107-Arduino-Debug.hpp>
 
 /**************************************************************************************
@@ -175,7 +175,6 @@ static littlefs::Filesystem filesystem(filesystem_config);
 cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesystem);
 #endif /* __GNUC__ >= 11 */
 
-
 /* REGISTER ***************************************************************************/
 
 static CanardNodeID node_id = DEFAULT_LEG_CONTROLLER_NODE_ID;
@@ -207,11 +206,6 @@ void setup()
 {
   Serial.begin(115200);
   while(!Serial) { } /* only for debug */
-
-  /* Setup LED pins and initialize */
-  pinMode(LED1_PIN, OUTPUT);
-  digitalWrite(LED1_PIN, LOW);
-  pinMode(BUMPER_PIN, INPUT_PULLUP);
 
   /* LITTLEFS/EEPROM ********************************************************************/
   Wire.begin();
@@ -260,9 +254,16 @@ void setup()
     0,
 #endif
     /* saturated uint8[16] unique_id */
-    OpenCyphalUniqueId(),
+    cyphal::support::UniqueId::instance().value(),
     /* saturated uint8[<=50] name */
     "107-systems.l3xz-leg-ctrl");
+
+  /* Setup LED pins and initialize */
+  pinMode(LED1_PIN, OUTPUT);
+  digitalWrite(LED1_PIN, LOW);
+
+  /* Setup bumper pin. */
+  pinMode(BUMPER_PIN, INPUT_PULLUP);
 
   /* Setup SPI access */
   SPI.begin();
@@ -308,8 +309,6 @@ void loop()
 
   if((now - prev_heartbeat) > 1000)
   {
-    digitalWrite(LED1_PIN, !digitalRead(LED1_PIN));
-
     Heartbeat_1_0 msg;
 
     msg.uptime = millis() / 1000;
@@ -322,6 +321,8 @@ void loop()
     DBG_INFO("TX Heartbeat (uptime: %d)", msg.uptime);
 
     prev_heartbeat = now;
+
+    digitalWrite(LED1_PIN, !digitalRead(LED1_PIN));
   }
 
   if((now - prev_bumper) > update_period_bumper_ms)
@@ -342,7 +343,7 @@ void loop()
     angle::Scalar_1_0 uavcan_as5048_a;
     uavcan_as5048_a.radian = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
     as5048a_pub->publish(uavcan_as5048_a);
-    DBG_INFO("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
+    DBG_VERBOSE("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
 
     {
       float const b_angle_raw = angle_B_pos_sensor.angle_raw();
@@ -351,7 +352,7 @@ void loop()
     angle::Scalar_1_0 uavcan_as5048_b;
     uavcan_as5048_b.radian = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
     as5048b_pub->publish(uavcan_as5048_b);
-    DBG_INFO("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
+    DBG_VERBOSE("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
 
     prev_angle_sensor = now;
   }
