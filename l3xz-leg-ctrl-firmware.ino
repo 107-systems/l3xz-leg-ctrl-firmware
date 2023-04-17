@@ -1,5 +1,5 @@
 /*
- * Firmare for the leg controller for the L3X-Z Hexapod
+ * Firmware for the leg controller for the L3X-Z Hexapod Robot.
  *
  * Hardware:
  *   - Arduino Nano RP2040 Connect
