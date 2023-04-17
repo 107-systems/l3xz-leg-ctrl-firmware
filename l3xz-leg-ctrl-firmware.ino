@@ -328,7 +328,7 @@ void loop()
   if((now - prev_bumper) > UPDATE_PERIOD_BUMPER_ms)
   {
     uavcan::primitive::scalar::Bit_1_0 uavcan_bumper;
-    uavcan_bumper.value = digitalRead(BUMPER_PIN);
+    uavcan_bumper.value = digitalRead(BUMPER_PIN) == LOW;
 
     if (bumper_pub)
       bumper_pub->publish(uavcan_bumper);
