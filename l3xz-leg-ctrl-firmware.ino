@@ -44,8 +44,6 @@ static int const AS504x_B_CS_PIN        = D5;
 static int const LED1_PIN               = D2;
 static int const BUMPER_PIN             = D6;
 
-static CanardNodeID const DEFAULT_LEG_CONTROLLER_NODE_ID = 31;
-
 static uint16_t const UPDATE_PERIOD_ANGLE_ms     = 50;
 static uint16_t const UPDATE_PERIOD_BUMPER_ms    = 500;
 static uint16_t const UPDATE_PERIOD_HEARTBEAT_ms = 1000;
@@ -91,7 +89,7 @@ ArduinoMCP2515 mcp2515([]()
                        nullptr);
 
 Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
-Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); }, DEFAULT_LEG_CONTROLLER_NODE_ID);
+Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); });
 
 Publisher<uavcan::node::Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<uavcan::node::Heartbeat_1_0>
   (uavcan::node::Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
@@ -166,7 +164,7 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 
 /* REGISTER ***************************************************************************/
 
-static CanardNodeID node_id          = DEFAULT_LEG_CONTROLLER_NODE_ID;
+static uint16_t     node_id          = std::numeric_limits<uint16_t>::max();
 static CanardPortID port_id_as5048_a = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_as5048_b = std::numeric_limits<CanardPortID>::max();
 static CanardPortID port_id_bumper   = std::numeric_limits<CanardPortID>::max();
@@ -224,10 +222,15 @@ void setup()
 
   (void)filesystem.unmount();
 
+  /* If the node ID contained in the register points to an undefined
+   * node ID, assign node ID 0 to this node.
+   */
+  if (node_id > CANARD_NODE_ID_MAX)
+    node_id = 0;
+  node_hdl.setNodeId(static_cast<CanardNodeID>(node_id));
   /* Update/create all objects which depend on persistently stored
    * register values.
    */
-  node_hdl.setNodeId(node_id);
   if (port_id_as5048_a != std::numeric_limits<CanardPortID>::max())
     as5048a_pub = node_hdl.create_publisher<uavcan::si::unit::angle::Scalar_1_0>(port_id_as5048_a, 1*1000*1000UL /* = 1 sec in usecs. */);
   if (port_id_as5048_b != std::numeric_limits<CanardPortID>::max())
