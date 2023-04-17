@@ -283,7 +283,6 @@ void setup()
   /* Initialize MCP2515 */
   mcp2515.begin();
   mcp2515.setBitRate(CanBitRate::BR_250kBPS_16MHZ);
-  mcp2515.setNormalMode();
 
   /* Calculate CAN filter values. */
   CanardFilter const CAN_FILTER_EXEC_CMD   = canardMakeFilterForService(uavcan::node::ExecuteCommand::Request_1_1::_traits_::FixedPortId, node_id);
@@ -309,6 +308,8 @@ void setup()
   };
   mcp2515.enableFilter(MCP2515::RxB::RxB1, RXMB1_MASK, RXMB1_FILTER, RXMB1_FILTER_SIZE);
 
+  /* Enable MCP2515. */
+  mcp2515.setNormalMode();
 
   DBG_INFO("init complete.");
 }
