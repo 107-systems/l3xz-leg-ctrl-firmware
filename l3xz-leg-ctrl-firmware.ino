@@ -299,7 +299,7 @@ void setup()
   };
   mcp2515.enableFilter(MCP2515::RxB::RxB0, RXMB0_MASK, RXMB0_FILTER, RXMB0_FILTER_SIZE);
 
-  /* Filter all incoming CAN frames for receive buffer #1. */
+  /* Only pass messages with ID 0 to receive buffer #1 (filtering out most). */
   uint32_t const RXMB1_MASK = 0x01FFFFFF;
   size_t const RXMB1_FILTER_SIZE = 4;
   uint32_t const RXMB1_FILTER[RXMB1_FILTER_SIZE] =
