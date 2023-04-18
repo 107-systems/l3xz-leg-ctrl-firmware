@@ -291,18 +291,27 @@ void setup()
 
   /* Only pass service requests/responses for this node ID through to receive buffer #0. */
   uint32_t const RXMB0_MASK = CAN_FILTER_SERVICES.extended_mask;
-  size_t const RXMB0_FILTER_SIZE = 1; /* Up to 2. */
-  uint32_t const RXMB0_FILTER[RXMB0_FILTER_SIZE] = {
-    MCP2515::CAN_EFF_BITMASK | CAN_FILTER_SERVICES.extended_can_id
+  size_t const RXMB0_FILTER_SIZE = 2;
+  uint32_t const RXMB0_FILTER[RXMB0_FILTER_SIZE] =
+  {
+    MCP2515::CAN_EFF_BITMASK | CAN_FILTER_SERVICES.extended_can_id,
+    MCP2515::CAN_EFF_BITMASK | 0
   };
   mcp2515.enableFilter(MCP2515::RxB::RxB0, RXMB0_MASK, RXMB0_FILTER, RXMB0_FILTER_SIZE);
 
   /* Filter all incoming CAN frames for receive buffer #1. */
   uint32_t const RXMB1_MASK = 0x01FFFFFF;
-  size_t const RXMB1_FILTER_SIZE = 0; /* Up to 4. */
-  mcp2515.enableFilter(MCP2515::RxB::RxB1, RXMB1_MASK, nullptr, RXMB1_FILTER_SIZE);
+  size_t const RXMB1_FILTER_SIZE = 4;
+  uint32_t const RXMB1_FILTER[RXMB1_FILTER_SIZE] =
+  {
+    MCP2515::CAN_EFF_BITMASK | 0,
+    MCP2515::CAN_EFF_BITMASK | 0,
+    MCP2515::CAN_EFF_BITMASK | 0,
+    MCP2515::CAN_EFF_BITMASK | 0
+  };
+  mcp2515.enableFilter(MCP2515::RxB::RxB1, RXMB1_MASK, RXMB1_FILTER, RXMB1_FILTER_SIZE);
 
-  /* Enable MCP2515. */
+  /* Leave configuration and enable MCP2515. */
   mcp2515.setNormalMode();
 
   DBG_INFO("init complete.");
