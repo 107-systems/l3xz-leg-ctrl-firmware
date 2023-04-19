@@ -173,14 +173,14 @@ static CanardPortID port_id_bumper   = std::numeric_limits<CanardPortID>::max();
 
 const auto node_registry = node_hdl.create_registry();
 
-const auto reg_rw_uavcan_node_id              = node_registry->expose("cyphal.node.id", {true}, node_id);
-const auto reg_ro_uavcan_node_description     = node_registry->route ("cyphal.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
-const auto reg_rw_uavcan_pub_AS5048_a_id      = node_registry->expose("cyphal.pub.AS5048_A.id", {true}, port_id_as5048_a);
-const auto reg_ro_uavcan_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_A.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_rw_uavcan_pub_AS5048_b_id      = node_registry->expose("cyphal.pub.AS5048_B.id", {true}, port_id_as5048_b);
-const auto reg_ro_uavcan_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_B.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
-const auto reg_rw_uavcan_pub_bumper_id        = node_registry->expose("cyphal.pub.bumper.id", {true}, port_id_bumper);
-const auto reg_ro_uavcan_pub_bumper_type      = node_registry->route ("cyphal.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
+const auto reg_rw_cyphal_node_id              = node_registry->expose("cyphal.node.id", {true}, node_id);
+const auto reg_ro_cyphal_node_description     = node_registry->route ("cyphal.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
+const auto reg_rw_cyphal_pub_AS5048_a_id      = node_registry->expose("cyphal.pub.AS5048_A.id", {true}, port_id_as5048_a);
+const auto reg_ro_cyphal_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_A.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_AS5048_b_id      = node_registry->expose("cyphal.pub.AS5048_B.id", {true}, port_id_as5048_b);
+const auto reg_ro_cyphal_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_B.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
+const auto reg_rw_cyphal_pub_bumper_id        = node_registry->expose("cyphal.pub.bumper.id", {true}, port_id_bumper);
+const auto reg_ro_cyphal_pub_bumper_type      = node_registry->route ("cyphal.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
 
 #endif /* __GNUC__ >= 11 */
 
@@ -191,7 +191,7 @@ const auto reg_ro_uavcan_pub_bumper_type      = node_registry->route ("cyphal.pu
 void setup()
 {
   Serial.begin(115200);
-  while(!Serial) { } /* only for debug */
+  // while(!Serial) { } /* only for debug */
 
   /* LITTLEFS/EEPROM ********************************************************************/
   Wire.begin();
