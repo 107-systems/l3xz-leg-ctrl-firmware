@@ -58,3 +58,15 @@ yakut sub 1003:uavcan.primitive.scalar.Bit.1.0 --with-metadata
   _meta_: {ts_system: 1681729517.634219, ts_monotonic: 24298.607404, source_node_id: 31, transfer_id: 10, priority: nominal, dtype: uavcan.primitive.scalar.Bit.1.0}
   value: false
 ```
+Obtain offset from sensor values and store in registers (with **42** being the node id):
+```bash
+y call 42 435:uavcan.node.ExecuteCommand.1.1 'command: 0xCAFE'
+```
+Read offset value via register interface:
+```bash
+y r 42 cyphal.l3xz-leg-ctrl.angle_offset_deg.b
+87.5390625
+
+y r 42 cyphal.l3xz-leg-ctrl.angle_offset_deg.a
+240.029296875
+```

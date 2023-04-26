@@ -1,10 +1,8 @@
-/*
- * Firmware for the leg controller for the L3X-Z Hexapod Robot.
- *
- * Hardware:
- *   - Arduino Nano RP2040 Connect
- *   - MCP2515
- * https://github.com/107-systems/l3xz-hw_leg-controller
+/**
+ * This software is distributed under the terms of the MIT License.
+ * Copyright (c) 2023 LXRobotics.
+ * Author: Alexander Entinger <alexander.entinger@lxrobotics.com>
+ * Contributors: https://github.com/107-systems/l3xz-leg-ctrl-firmware/graphs/contributors.
  */
 
 /**************************************************************************************
@@ -57,17 +55,14 @@ static SPISettings const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE
 
 DEBUG_INSTANCE(80, Serial);
 
-static float a_angle_deg        = 0.0f;
-static float b_angle_deg        = 0.0f;
-static float a_angle_offset_deg = 0.0f;
-static float b_angle_offset_deg = 0.0f;
-
 /**************************************************************************************
  * FUNCTION DECLARATION
  **************************************************************************************/
 
 void onReceiveBufferFull(CanardFrame const &);
 uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received(uavcan::node::ExecuteCommand::Request_1_1 const &);
+float const a_angle_deg();
+float const b_angle_deg();
 
 /**************************************************************************************
  * GLOBAL VARIABLES
@@ -91,16 +86,12 @@ ArduinoMCP2515 mcp2515([]()
 Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
 Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); });
 
-Publisher<uavcan::node::Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<uavcan::node::Heartbeat_1_0>
-  (uavcan::node::Heartbeat_1_0::_traits_::FixedPortId, 1*1000*1000UL /* = 1 sec in usecs. */);
+Publisher<uavcan::node::Heartbeat_1_0> heartbeat_pub = node_hdl.create_publisher<uavcan::node::Heartbeat_1_0>(1*1000*1000UL /* = 1 sec in usecs. */);
 Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048a_pub;
 Publisher<uavcan::si::unit::angle::Scalar_1_0> as5048b_pub;
 Publisher<uavcan::primitive::scalar::Bit_1_0> bumper_pub;
 
-ServiceServer execute_command_srv = node_hdl.create_service_server<uavcan::node::ExecuteCommand::Request_1_1, uavcan::node::ExecuteCommand::Response_1_1>(
-  uavcan::node::ExecuteCommand::Request_1_1::_traits_::FixedPortId,
-  2*1000*1000UL,
-  onExecuteCommand_1_1_Request_Received);
+ServiceServer execute_command_srv = node_hdl.create_service_server<uavcan::node::ExecuteCommand::Request_1_1, uavcan::node::ExecuteCommand::Response_1_1>(2*1000*1000UL, onExecuteCommand_1_1_Request_Received);
 
 ArduinoAS504x angle_A_pos_sensor([]() { SPI.beginTransaction(AS504x_SPI_SETTING); },
                                  []() { SPI.endTransaction(); },
@@ -164,10 +155,13 @@ cyphal::support::platform::storage::littlefs::KeyValueStorage kv_storage(filesys
 
 /* REGISTER ***************************************************************************/
 
-static uint16_t     node_id          = std::numeric_limits<uint16_t>::max();
-static CanardPortID port_id_as5048_a = std::numeric_limits<CanardPortID>::max();
-static CanardPortID port_id_as5048_b = std::numeric_limits<CanardPortID>::max();
-static CanardPortID port_id_bumper   = std::numeric_limits<CanardPortID>::max();
+static uint16_t     node_id            = std::numeric_limits<uint16_t>::max();
+static CanardPortID port_id_as5048_a   = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_as5048_b   = std::numeric_limits<CanardPortID>::max();
+static CanardPortID port_id_bumper     = std::numeric_limits<CanardPortID>::max();
+static float        a_angle_offset_deg = 0.0f;
+static float        b_angle_offset_deg = 0.0f;
+
 
 #if __GNUC__ >= 11
 
@@ -181,6 +175,8 @@ const auto reg_rw_cyphal_pub_AS5048_b_id      = node_registry->expose("cyphal.pu
 const auto reg_ro_cyphal_pub_AS5048_b_type    = node_registry->route ("cyphal.pub.AS5048_B.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_pub_bumper_id        = node_registry->expose("cyphal.pub.bumper.id", {true}, port_id_bumper);
 const auto reg_ro_cyphal_pub_bumper_type      = node_registry->route ("cyphal.pub.bumper.type", {true}, []() { return "uavcan.primitive.scalar.Bit.1.0"; });
+const auto reg_rw_cyphal_a_angle_offset_deg   = node_registry->expose("cyphal.l3xz-leg-ctrl.angle_offset_deg.a", {true}, a_angle_offset_deg);
+const auto reg_rw_cyphal_b_angle_offset_deg   = node_registry->expose("cyphal.l3xz-leg-ctrl.angle_offset_deg.b", {true}, b_angle_offset_deg);
 
 #endif /* __GNUC__ >= 11 */
 
@@ -192,6 +188,9 @@ void setup()
 {
   Serial.begin(115200);
   // while(!Serial) { } /* only for debug */
+  delay(1000);
+
+  Debug.prettyPrintOn(); /* Enable pretty printing on a shell. */
 
   /* LITTLEFS/EEPROM ********************************************************************/
   Wire.begin();
@@ -240,6 +239,9 @@ void setup()
 
   DBG_INFO("Node ID: %d\n\r\tAS5048 A ID = %d\n\r\tAS5048 B ID = %d\n\r\tBUMPER   ID = %d",
            node_id, port_id_as5048_a, port_id_as5048_b, port_id_bumper);
+  DBG_INFO("\tANG. OFF. A = %0.2f\n\r\tANG. OFF. B = %0.2f",
+           a_angle_offset_deg, b_angle_offset_deg);
+
 
   /* NODE INFO ************************************************************************/
   static const auto node_info = node_hdl.create_node_info
@@ -370,22 +372,14 @@ void loop()
 
   if((now - prev_angle_sensor) > UPDATE_PERIOD_ANGLE_ms)
   {
-    {
-      float const a_angle_raw = angle_A_pos_sensor.angle_raw();
-      a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
-    }
     uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_a;
-    uavcan_as5048_a.radian = (a_angle_deg - a_angle_offset_deg) * M_PI / 180.0f;
+    uavcan_as5048_a.radian = (a_angle_deg() - a_angle_offset_deg) * M_PI / 180.0f;
     if (as5048a_pub)
       as5048a_pub->publish(uavcan_as5048_a);
     DBG_VERBOSE("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
 
-    {
-      float const b_angle_raw = angle_B_pos_sensor.angle_raw();
-      b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
-    }
     uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_b;
-    uavcan_as5048_b.radian = (b_angle_deg - b_angle_offset_deg) * M_PI / 180.0f;
+    uavcan_as5048_b.radian = (b_angle_deg() - b_angle_offset_deg) * M_PI / 180.0f;
     if (as5048b_pub)
       as5048b_pub->publish(uavcan_as5048_b);
     DBG_VERBOSE("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
@@ -441,10 +435,10 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
   else if (req.command == 0xCAFE)
   {
     /* Capture the angle offset. */
-    a_angle_offset_deg = a_angle_deg;
-    b_angle_offset_deg = b_angle_deg;
+    a_angle_offset_deg = a_angle_deg();
+    b_angle_offset_deg = b_angle_deg();
 
-    DBG_INFO("onExecuteCommand_1_1_Request_Received:\n\toffset femur: %0.1f\n\toffset tibia: %0.1f",
+    DBG_INFO("onExecuteCommand_1_1_Request_Received:\n\r\toffset femur: %0.2f\n\r\toffset tibia: %0.2f",
              a_angle_offset_deg,
              b_angle_offset_deg);
 
@@ -455,4 +449,18 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
   }
 
   return rsp;
+}
+
+float const a_angle_deg()
+{
+  float const a_angle_raw = angle_A_pos_sensor.angle_raw();
+  float const a_angle_deg = ((a_angle_raw * 360.0) / 16384.0f /* 2^14 */);
+  return a_angle_deg;
+}
+
+float const b_angle_deg()
+{
+  float const b_angle_raw = angle_B_pos_sensor.angle_raw();
+  float const b_angle_deg = ((b_angle_raw * 360.0) / 16384.0f /* 2^14 */);
+  return b_angle_deg;
 }
