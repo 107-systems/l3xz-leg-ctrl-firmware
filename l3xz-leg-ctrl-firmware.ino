@@ -81,7 +81,9 @@ ArduinoMCP2515 mcp2515([]()
                        [](uint8_t const d) { return SPI.transfer(d); },
                        micros,
                        onReceiveBufferFull,
-                       nullptr);
+                       nullptr,
+                       [](MCP2515::EFLG const err_flag) { DBG_ERROR("MCP2515::OnError, error code = \"%s\"", MCP2515::toStr(err_flag)); },
+                       [](MCP2515::EFLG const err_flag) { DBG_ERROR("MCP2515::OnWarning, warning code = \"%s\"", MCP2515::toStr(err_flag)); });
 
 Node::Heap<Node::DEFAULT_O1HEAP_SIZE> node_heap;
 Node node_hdl(node_heap.data(), node_heap.size(), micros, [] (CanardFrame const & frame) { return mcp2515.transmit(frame); });
