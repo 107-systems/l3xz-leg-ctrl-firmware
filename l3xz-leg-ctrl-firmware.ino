@@ -46,6 +46,8 @@ static uint16_t const UPDATE_PERIOD_ANGLE_ms     = 50;
 static uint16_t const UPDATE_PERIOD_BUMPER_ms    = 500;
 static uint16_t const UPDATE_PERIOD_HEARTBEAT_ms = 1000;
 
+static uint32_t const WATCHDOG_DELAY_ms = 1000;
+
 static SPISettings const MCP2515x_SPI_SETTING{10*1000*1000UL, MSBFIRST, SPI_MODE0};
 static SPISettings const AS504x_SPI_SETTING  {10*1000*1000UL, MSBFIRST, SPI_MODE1};
 
@@ -318,6 +320,10 @@ void setup()
   /* Leave configuration and enable MCP2515. */
   mcp2515.setNormalMode();
 
+  /* Enable watchdog. */
+  rp2040.wdt_begin(WATCHDOG_DELAY_ms);
+  rp2040.wdt_reset();
+
   DBG_INFO("init complete.");
 }
 
@@ -388,6 +394,12 @@ void loop()
 
     prev_angle_sensor = now;
   }
+
+  /* Feed the watchdog only if not an async reset is
+   * pending because we want to restart via yakut.
+   */
+  if (!cyphal::support::platform::is_async_reset_pending())
+    rp2040.wdt_reset();
 }
 
 /**************************************************************************************
@@ -421,6 +433,8 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
       rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
       return rsp;
     }
+    /* Feed the watchdog. */
+    rp2040.wdt_reset();
 #if __GNUC__ >= 11
     auto const rc_save = cyphal::support::save(kv_storage, *node_registry);
     if (rc_save.has_value())
@@ -429,9 +443,11 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
       rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_FAILURE;
       return rsp;
     }
-     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+    /* Feed the watchdog. */
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
 #endif /* __GNUC__ >= 11 */
     (void)filesystem.unmount();
+    /* Feed the watchdog. */
     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
   else if (req.command == 0xCAFE)
