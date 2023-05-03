@@ -444,6 +444,7 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
       return rsp;
     }
     /* Feed the watchdog. */
+    rp2040.wdt_reset();
     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
 #endif /* __GNUC__ >= 11 */
     (void)filesystem.unmount();
