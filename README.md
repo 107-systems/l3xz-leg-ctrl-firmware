@@ -24,14 +24,8 @@ arduino-cli compile -b rp2040:rp2040:arduino_nano_connect -v . --build-property 
 Adding argument `--build-property compiler.cpp.extra_flags="-DCYPHAL_NODE_INFO_GIT_VERSION=0x$(git rev-parse --short=16 HEAD)"` allows to feed the Git hash of the current software version to [107-Arduino-Cyphal](https://github.com/107-systems/107-Arduino-Cyphal) stack from where it can be retrieved via i.e. [yakut](https://github.com/opencyphal/yakut).
 
 ### How-to-`yakut`
-Configure `can0`:
+[Install](https://github.com/OpenCyphal/yakut) and configure `yakut`:
 ```bash
-sudo ./setup_slcan.sh --remove-all --basename can --speed-code 5 /dev/serial/by-id/usb-Zubax_Robotics_Zubax_Babel_*-if00
-```
-Configure `yakut`:
-```bash
-python3 -m pip install yakut
-yakut compile https://github.com/OpenCyphal/public_regulated_data_types/archive/refs/heads/master.zip
 . setup_yakut.sh
 ```
 Subscribe via `yakut`:
