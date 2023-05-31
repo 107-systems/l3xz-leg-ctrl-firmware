@@ -198,6 +198,7 @@ void setup()
 
   /* LITTLEFS/EEPROM ********************************************************************/
   Wire.begin();
+  Wire.setClock(400*1000UL); /* Set fast mode. */
 
   if (!eeprom.isConnected()) {
     DBG_ERROR("Connecting to EEPROM failed.");
