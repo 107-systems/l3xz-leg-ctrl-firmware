@@ -385,13 +385,14 @@ void loop()
     uavcan_as5048_a.radian = (a_angle_deg() - a_angle_offset_deg) * M_PI / 180.0f;
     if (as5048a_pub)
       as5048a_pub->publish(uavcan_as5048_a);
-    DBG_VERBOSE("TX femur angle: %0.1f (offset: %0.1f)", a_angle_deg, a_angle_offset_deg);
+    DBG_VERBOSE("TX femur angle: %0.1f (raw: %0.1f, offset: %0.1f)", uavcan_as5048_a.radian * 180.0f / M_PI, a_angle_deg(), a_angle_offset_deg);
+
 
     uavcan::si::unit::angle::Scalar_1_0 uavcan_as5048_b;
     uavcan_as5048_b.radian = (b_angle_deg() - b_angle_offset_deg) * M_PI / 180.0f;
     if (as5048b_pub)
       as5048b_pub->publish(uavcan_as5048_b);
-    DBG_VERBOSE("TX tibia angle: %0.1f (offset: %0.1f)", b_angle_deg, b_angle_offset_deg);
+    DBG_VERBOSE("TX tibia angle: %0.1f (raw: %0.1f, offset: %0.1f)", uavcan_as5048_b.radian * 180.0f / M_PI, b_angle_deg(), b_angle_offset_deg);
 
     prev_angle_sensor = now;
   }
