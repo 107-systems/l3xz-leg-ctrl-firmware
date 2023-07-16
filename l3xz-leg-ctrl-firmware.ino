@@ -453,6 +453,20 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
     /* Feed the watchdog. */
     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
+  else if (req.command == uavcan::node::ExecuteCommand::Request_1_1::COMMAND_FACTORY_RESET)
+  {
+    /* erasing eeprom by writing FF in every cell */
+    size_t const NUM_PAGES = eeprom.device_size() / eeprom.page_size();
+    for(size_t page = 0; page < NUM_PAGES; page++)
+    {
+      uint16_t const page_addr = page * eeprom.page_size();
+      eeprom.fill_page(page_addr, 0xFF);
+      rp2040.wdt_reset();
+    }
+
+    /* Send the response. */
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+  }
   else if (req.command == 0xCAFE)
   {
     /* Capture the angle offset. */
