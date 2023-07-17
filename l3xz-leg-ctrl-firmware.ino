@@ -166,13 +166,14 @@ static CanardPortID port_id_bumper     = std::numeric_limits<CanardPortID>::max(
 static float        a_angle_offset_deg = 0.0f;
 static float        b_angle_offset_deg = 0.0f;
 
+static std::string node_description{"L3X-Z LEG_CONTROLLER"};
 
 #if __GNUC__ >= 11
 
 const auto node_registry = node_hdl.create_registry();
 
 const auto reg_rw_cyphal_node_id              = node_registry->expose("cyphal.node.id", {true}, node_id);
-const auto reg_ro_cyphal_node_description     = node_registry->route ("cyphal.node.description", {true}, []() { return  "L3X-Z LEG_CONTROLLER"; });
+const auto reg_rw_cyphal_node_description     = node_registry->expose("cyphal.node.description", {true}, node_description);
 const auto reg_rw_cyphal_pub_AS5048_a_id      = node_registry->expose("cyphal.pub.AS5048_A.id", {true}, port_id_as5048_a);
 const auto reg_ro_cyphal_pub_AS5048_a_type    = node_registry->route ("cyphal.pub.AS5048_A.type", {true}, []() { return "uavcan.primitive.scalar.Real32.1.0"; });
 const auto reg_rw_cyphal_pub_AS5048_b_id      = node_registry->expose("cyphal.pub.AS5048_B.id", {true}, port_id_as5048_b);
@@ -451,6 +452,20 @@ uavcan::node::ExecuteCommand::Response_1_1 onExecuteCommand_1_1_Request_Received
 #endif /* __GNUC__ >= 11 */
     (void)filesystem.unmount();
     /* Feed the watchdog. */
+    rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
+  }
+  else if (req.command == uavcan::node::ExecuteCommand::Request_1_1::COMMAND_FACTORY_RESET)
+  {
+    /* erasing eeprom by writing FF in every cell */
+    size_t const NUM_PAGES = eeprom.device_size() / eeprom.page_size();
+    for(size_t page = 0; page < NUM_PAGES; page++)
+    {
+      uint16_t const page_addr = page * eeprom.page_size();
+      eeprom.fill_page(page_addr, 0xFF);
+      rp2040.wdt_reset();
+    }
+
+    /* Send the response. */
     rsp.status = uavcan::node::ExecuteCommand::Response_1_1::STATUS_SUCCESS;
   }
   else if (req.command == 0xCAFE)
